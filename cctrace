@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e 
+
+# must run as root.
+if [[ "$EUID" -ne 0 ]]
+  then echo "Please run as root"
+  exit 1
+fi
+
+# TODO: check that sysdig is installed and working
+
+sysdig evt.type=execve and evt.dir='>' and user.name=$(logname) \
+  | python3 cctrace.py
