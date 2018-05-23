@@ -93,6 +93,6 @@ Vagrant.configure("2") do |config|
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     # add github.com to known hosts
-    ssh-keyscan -H -t rsa github.com >> ~/.ssh/known_hosts
+    ssh-keyscan -H -t rsa github.com >> ~/.ssh/known_hosts 2> /dev/null
   SHELL
 end
