@@ -98,7 +98,7 @@ BIN_COUNT = 0
 def process_evt(evt: str):
     global BINARIES, BIN_COUNT
     atoms = evt.split()
-    assert atoms[0].startswith("filename="), "unexpected: " + line
+    assert atoms[0].startswith("filename="), "unexpected: " + evt
     binary = atoms[0][9:]
     # we don't monitor whether execve fails or not, so skip
     # calls that try to execute non-exsistent files.
