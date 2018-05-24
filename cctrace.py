@@ -3,6 +3,7 @@
 import os
 import sys
 import shutil
+from collections import defaultdict
 
 # Terminal color codes
 NO_COLOR = '\033[0m'
@@ -63,7 +64,7 @@ COLOR_MAP = {
     '/usr/bin/perl': LBLUE,
     '/usr/bin/tclsh8.6': LBLUE,
 }
-
+COLOR_MAP = defaultdict(str, COLOR_MAP)
 LASTLINES = 0  # how many lines did last call to update_display print?
 
 
@@ -73,36 +74,57 @@ def update_display(binaries):
     if LASTLINES > 1:
         sys.stdout.write(u"\u001b[" + str(LASTLINES - 1) + "A")  # Move up
 
-    maxlen = max([len(b) for b in binaries])
-
     def format(instr):
         if instr in COLOR_MAP:
             instr = COLOR_MAP[instr] + instr + NO_COLOR
         return instr.ljust(COLUMNS)
 
-    lines = [format(b) for b in sorted(binaries)]
+    # save screen space by not showing utilities
+    lines = [format(b) for b in sorted(binaries) if COLOR_MAP[b] != DGRAY]
+    # lines = [format(b) for b in sorted(binaries)]
+
+    if len(lines) > LINES:
+        msg = "... {} additional binaries not shown".format(len(lines)-LINES+1)
+        msg = msg.ljust(COLUMNS)
+        lines = lines[:LINES-1] + [msg]
     LASTLINES = len(lines)
     sys.stdout.write("\n".join(lines))
 
 
-if __name__ == "__main__":
-    BINARIES = set()
-    BIN_COUNT = 0
+BINARIES = set()
+BIN_COUNT = 0
+
+
+def process_evt(evt: str):
+    global BINARIES, BIN_COUNT
+    atoms = evt.split()
+    assert atoms[0].startswith("filename="), "unexpected: " + line
+    binary = atoms[0][9:]
+    # we don't monitor whether execve fails or not, so skip
+    # calls that try to execute non-exsistent files.
+    if not os.path.exists(binary):
+        return
+
+    BINARIES.add(binary)
+    if len(BINARIES) > BIN_COUNT:
+        BIN_COUNT += 1
+        update_display(BINARIES)
+
+
+def main():
+    def readline():
+        return sys.stdin.readline().rstrip()
 
     try:
-        for line in sys.stdin:
-            atoms = line.split()
-            assert atoms[0].startswith("filename="), "unexpected: " + line
-            binary = atoms[0][9:]
-            # we don't monitor whether execve fails or not, so we
-            # skip calls that cannot succeed.
-            if not os.path.exists(binary):
-                continue
-            BINARIES.add(binary)
-            if len(BINARIES) > BIN_COUNT:
-                BIN_COUNT += 1
-                update_display(BINARIES)
+        while True:
+            line = readline()
+            while line.endswith('\\'):
+                line += readline()
+            process_evt(line)
     except KeyboardInterrupt:
         sys.stdout.write("\n")
         sys.stdout.flush()
-        pass
+
+
+if __name__ == "__main__":
+    main()

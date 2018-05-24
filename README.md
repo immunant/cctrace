@@ -5,7 +5,7 @@ Note: `cctrace` relies on `sysdig` which is only fully supported on Linux.
 
 ## TODOs:
 
-- [ ] Handle multi-line commands 
+- [x] Handle multi-line sysdig events 
 - [ ] Improve classification of tools
     - [ ] detect non-system compilers
     - [ ] detect selfrando
