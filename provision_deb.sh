@@ -15,11 +15,14 @@ if [[ "$EUID" -ne 0 ]]
 fi
 
 apt-get -qq update
-apt-get install -qq build-essential htop
-# don't warn when adding developer GPG key
-export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+apt-get -qq install build-essential htop python3-pip ipython3
+# ETE toolkit dependencies
+apt-get -qq install python3-numpy python3-pyqt4 python3-lxml python3-six
+pip3 install --quiet --upgrade ete3
 
 # conditionally install sysdig
 if ! type "sysdig" > /dev/null 2>&1; then
+  # don't warn when adding developer GPG key
+  export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
   curl -s https://s3.amazonaws.com/download.draios.com/stable/install-sysdig | bash
 fi
