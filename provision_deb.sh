@@ -16,9 +16,8 @@ fi
 
 apt-get -qq update
 apt-get -qq install build-essential htop python3-pip ipython3
-# ETE toolkit dependencies
-apt-get -qq install python3-numpy python3-pyqt4 python3-lxml python3-six
-pip3 install --quiet --upgrade ete3
+# anytree python library
+pip3 install --quiet --upgrade anytree
 
 # conditionally install sysdig
 if ! type "sysdig" > /dev/null 2>&1; then
