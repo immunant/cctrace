@@ -10,5 +10,6 @@ fi
 
 # TODO: check that sysdig is installed and working
 
-sysdig evt.type=execve and evt.dir='>' and user.name=$(logname) \
-  | python3 cctrace.py
+sysdig -p"%evt.args proc.pname %proc.exepath %proc.args" \
+  evt.type=execve and evt.dir='>' and user.name=$(logname) \
+  | python3 cctrace.py  
