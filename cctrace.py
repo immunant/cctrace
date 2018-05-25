@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import os
 import sys
@@ -10,6 +11,7 @@ import shutil
 from collections import defaultdict
 from anytree import Node, RenderTree
 from anytree.node.exceptions import TreeError
+from anytree.render import AsciiStyle, ContStyle
 
 # Terminal color codes
 NO_COLOR = '\033[0m'
@@ -71,6 +73,9 @@ COLOR_MAP = {
 }
 COLOR_MAP = defaultdict(str, COLOR_MAP)
 PP = pprint.PrettyPrinter(indent=2)
+LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
+STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
+
 
 NODES = dict()
 
@@ -102,11 +107,11 @@ def parse_exit_evt(e: dict) -> dict:
 
 def handle_events(enterevt: dict, exitevt: dict):
     exitevt = parse_exit_evt(exitevt)
-    
+
     # ignore non-successful events
     if exitevt.pop('res') != '0':
         return
-  
+
     # PP.pprint(enterevt)
     # print("-------------")
     # PP.pprint(exitevt)
@@ -114,7 +119,7 @@ def handle_events(enterevt: dict, exitevt: dict):
 
     parent, parent_pid = enterevt['proc.exepath'], int(enterevt['proc.ppid'])
     child, child_pid = exitevt['proc.exepath'], exitevt['pid']
-    child_pid = int(child_pid[:child_pid.index('(')])  # 123(ls) -> 123
+    child_pid = int(child_pid[:child_pid.index('(')])  # 123(ab) -> 123
 
     pnode = NODES.get(parent_pid, Node(parent))
     NODES[child_pid] = Node(child, parent=pnode)
@@ -122,7 +127,7 @@ def handle_events(enterevt: dict, exitevt: dict):
     while pnode.parent:
         pnode = pnode.parent
 
-    for pre, _, node in RenderTree(pnode):
+    for pre, _, node in RenderTree(pnode, style=STY):
         print("%s%s" % (pre, node.name))
 
 
