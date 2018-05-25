@@ -3,13 +3,27 @@
 set -e 
 
 # must run as root.
-if [[ "$EUID" -ne 0 ]]
-  then echo "Please run as root"
-  exit 1
+if [[ "$EUID" -ne 0 ]]; then 
+    echo >&2 "Please run as root"; exit 1
 fi
 
-# TODO: check that sysdig is installed and working
+# check that sysdig is installed and working
+if type "sysdig" > /dev/null 2>&1; then
+  sysdig --version | grep -q "sysdig version 0.21.0" || \
+    { echo >&2 "sysdig version 0.21.0 expected"; exit 1; }
+else
+    echo >&2 "Please make sure sysdig is installed"; exit 1
+fi
 
-sysdig -p"%evt.args proc.pname %proc.exepath %proc.args" \
-  evt.type=execve and evt.dir='>' and user.name=$(logname) \
-  | python3 cctrace.py  
+if type "python3" > /dev/null 2>&1; then
+    # TODO: check that python3 is v3 and check for packages
+    true
+else 
+    echo >&2 "Error, python3 not in path"; exit 1
+fi
+
+# sysdig 0.21.0 has buggy newline handling w/json output, so use prerelease
+# SYSDIG=sysdig
+SYSDIG=$HOME/sysdig/build/userspace/sysdig/sysdig
+$SYSDIG --print-base64 --json -p"tid=%thread.tid %evt.dir %evt.args" \
+  evt.type=execve and user.name=$(logname) | python3 cctrace.py

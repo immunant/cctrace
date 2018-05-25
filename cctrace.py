@@ -2,7 +2,10 @@
 
 import os
 import sys
+import json
+import base64
 import shutil
+
 from collections import defaultdict
 
 # Terminal color codes
@@ -95,32 +98,65 @@ BINARIES = set()
 BIN_COUNT = 0
 
 
-def process_evt(evt: str):
-    global BINARIES, BIN_COUNT
-    atoms = evt.split()
-    assert atoms[0].startswith("filename="), "unexpected: " + evt
-    binary = atoms[0][9:]
-    # we don't monitor whether execve fails or not, so skip
-    # calls that try to execute non-exsistent files.
-    if not os.path.exists(binary):
-        return
+def parse_exit_evt(e: dict) -> dict:
+    def split_kv(s: str) -> str:
+        try:
+            i = s.index('=')
+            return s[:i], s[i+1:]
+        except ValueError:
+            print("no = in :" + s)
 
-    BINARIES.add(binary)
-    if len(BINARIES) > BIN_COUNT:
-        BIN_COUNT += 1
-        update_display(BINARIES)
+    def parse_env(env: str) -> dict:
+        # base64 str -> bytes -> str
+        env = base64.b64decode(env).decode("utf-8")
+        env = [split_kv(a) for a in env.split('\x00') if a]
+        return {k: v for k, v in env}
+
+    args = e['evt.args'].rstrip().split(' ')
+    ign = ['cgroups', 'fdlimit', 'vm_size', 'vm_rss']
+    res = {k: v for k, v in [split_kv(a) for a in args] if k not in ign}
+
+    # parse out env variables
+    res['env'] = parse_env(res['env'])
+    return res
+
+
+def handle_events(enterevt: dict, exitevt: dict):
+    exitevt = parse_exit_evt(exitevt)
+    print(repr(exitevt))
+
+
+    # global BINARIES, BIN_COUNT
+    # atoms = evt.split()
+    # assert atoms[0].startswith("filename="), "unexpected: " + evt
+    # binary = atoms[0][9:]
+    # # we don't monitor whether execve fails or not, so skip
+    # # calls that try to execute non-exsistent files.
+    # if not os.path.exists(binary):
+    #     return
+
+    # BINARIES.add(binary)
+    # if len(BINARIES) > BIN_COUNT:
+    #     BIN_COUNT += 1
+    #     update_display(BINARIES)
 
 
 def main():
-    def readline():
-        return sys.stdin.readline().rstrip()
+
+    enter_events = dict()  # key'ed by thread id
 
     try:
         while True:
-            line = readline()
-            while line.endswith('\\'):
-                line += readline()
-            process_evt(line)
+            line = sys.stdin.readline()
+            evt = json.loads(line)  # type: dict
+
+            tid = int(evt['thread.tid'])
+            if evt['evt.dir'] == '>':  # enter events
+                enter_events[tid] = evt
+            else:  # exit events
+                assert evt['evt.dir'] == '<'
+                enter_event = enter_events.pop(tid)
+                handle_events(enter_event, evt)
     except KeyboardInterrupt:
         sys.stdout.write("\n")
         sys.stdout.flush()
