@@ -4,9 +4,12 @@ import os
 import sys
 import json
 import base64
+import pprint
 import shutil
 
 from collections import defaultdict
+from anytree import Node, RenderTree
+from anytree.node.exceptions import TreeError
 
 # Terminal color codes
 NO_COLOR = '\033[0m'
@@ -29,7 +32,6 @@ COLOR_MAP = {
     '/usr/bin/less': DGRAY,
     '/bin/bash': DGRAY,
     '/bin/tar': DGRAY,
-    '/bin/gzip': DGRAY,
     '/bin/gzip': DGRAY,
     '/bin/sed': DGRAY,
     '/usr/bin/diff': DGRAY,
@@ -68,35 +70,9 @@ COLOR_MAP = {
     '/usr/bin/tclsh8.6': LBLUE,
 }
 COLOR_MAP = defaultdict(str, COLOR_MAP)
-LASTLINES = 0  # how many lines did last call to update_display print?
+PP = pprint.PrettyPrinter(indent=2)
 
-
-def update_display(binaries):
-    global LASTLINES
-    sys.stdout.write(u"\u001b[" + str(COLUMNS) + "D")  # Move left
-    if LASTLINES > 1:
-        sys.stdout.write(u"\u001b[" + str(LASTLINES - 1) + "A")  # Move up
-
-    def format(instr):
-        if instr in COLOR_MAP:
-            instr = COLOR_MAP[instr] + instr + NO_COLOR
-        return instr.ljust(COLUMNS)
-
-    # save screen space by not showing utilities
-    lines = [format(b) for b in sorted(binaries) if COLOR_MAP[b] != DGRAY]
-    # lines = [format(b) for b in sorted(binaries)]
-
-    if len(lines) > LINES:
-        msg = "... {} additional binaries not shown".format(len(lines)-LINES+1)
-        msg = msg.ljust(COLUMNS)
-        lines = lines[:LINES-1] + [msg]
-    LASTLINES = len(lines)
-    sys.stdout.write("\n".join(lines))
-
-
-BINARIES = set()
-BIN_COUNT = 0
-
+NODES = dict()
 
 def parse_exit_evt(e: dict) -> dict:
     def split_kv(s: str) -> str:
@@ -113,32 +89,41 @@ def parse_exit_evt(e: dict) -> dict:
         return {k: v for k, v in env}
 
     args = e['evt.args'].rstrip().split(' ')
-    ign = ['cgroups', 'fdlimit', 'vm_size', 'vm_rss']
-    res = {k: v for k, v in [split_kv(a) for a in args] if k not in ign}
+    args = e.pop('evt.args').rstrip().split()
+    igno = ['cgroups', 'fdlimit', 'vm_size', 'vm_rss', 'vm_swap', 'pgft_maj', 'pgft_min']
+    args = {k: v for k, v in [split_kv(a) for a in args] if k not in igno}
 
     # parse out env variables
-    res['env'] = parse_env(res['env'])
-    return res
+    # args['env'] = parse_env(args['env'])
+    args.pop('env')
+    e.update(args)
+    return e
 
 
 def handle_events(enterevt: dict, exitevt: dict):
     exitevt = parse_exit_evt(exitevt)
-    print(repr(exitevt))
+    
+    # ignore non-successful events
+    if exitevt.pop('res') != '0':
+        return
+  
+    # PP.pprint(enterevt)
+    # print("-------------")
+    # PP.pprint(exitevt)
+    # quit(1)
 
+    parent, parent_pid = enterevt['proc.exepath'], int(enterevt['proc.ppid'])
+    child, child_pid = exitevt['proc.exepath'], exitevt['pid']
+    child_pid = int(child_pid[:child_pid.index('(')])  # 123(ls) -> 123
 
-    # global BINARIES, BIN_COUNT
-    # atoms = evt.split()
-    # assert atoms[0].startswith("filename="), "unexpected: " + evt
-    # binary = atoms[0][9:]
-    # # we don't monitor whether execve fails or not, so skip
-    # # calls that try to execute non-exsistent files.
-    # if not os.path.exists(binary):
-    #     return
+    pnode = NODES.get(parent_pid, Node(parent))
+    NODES[child_pid] = Node(child, parent=pnode)
 
-    # BINARIES.add(binary)
-    # if len(BINARIES) > BIN_COUNT:
-    #     BIN_COUNT += 1
-    #     update_display(BINARIES)
+    while pnode.parent:
+        pnode = pnode.parent
+
+    for pre, _, node in RenderTree(pnode):
+        print("%s%s" % (pre, node.name))
 
 
 def main():
