@@ -105,6 +105,11 @@ def parse_exit_evt(e: dict) -> dict:
     return e
 
 
+class CCNode(Node):
+    pass
+    # separator = "|"
+
+
 def handle_events(enterevt: dict, exitevt: dict):
     exitevt = parse_exit_evt(exitevt)
 
@@ -120,15 +125,47 @@ def handle_events(enterevt: dict, exitevt: dict):
     parent, parent_pid = enterevt['proc.exepath'], int(enterevt['proc.ppid'])
     child, child_pid = exitevt['proc.exepath'], exitevt['pid']
     child_pid = int(child_pid[:child_pid.index('(')])  # 123(ab) -> 123
+    assert parent_pid != child_pid
 
-    pnode = NODES.get(parent_pid, Node(parent))
-    NODES[child_pid] = Node(child, parent=pnode)
+    pcolor = COLOR_MAP.get(parent, NO_COLOR)
+    rnode = CCNode(parent, count=1, color=pcolor, pid=parent_pid)
+    pnode = NODES.setdefault(parent_pid, rnode)
 
-    while pnode.parent:
-        pnode = pnode.parent
+    # deduplicate child nodes
+    for cnode in pnode.children:
+        if cnode.name == child:
+            # found existing child!
+            cnode.count += 1
+            break
+    else:  # didn't find existing child!
+        ccolor = COLOR_MAP.get(child, NO_COLOR)
+        NODES[child_pid] = CCNode(child,
+                                  parent=pnode,
+                                  count=1,
+                                  color=ccolor,
+                                  pid=child_pid)
 
-    for pre, _, node in RenderTree(pnode, style=STY):
-        print("%s%s" % (pre, node.name))
+    # while pnode.parent:
+    #     pnode = pnode.parent
+    # assert pnode.is_root
+
+    # TODO: handle multiple roots
+    roots = [n for n in NODES.values() if n.is_root]
+
+    # DISPLAY PART
+    # TODO: extract function
+
+    sys.stdout.write(u"\u001b[" + str(1000) + "D")  # Move left
+    sys.stdout.write(u"\u001b[" + str(1000) + "A")  # Move up
+    for i, root in enumerate(roots):
+        for pre, _, node in RenderTree(pnode, style=STY):
+            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+            line = line + NO_COLOR
+            # TODO: does not count escape codes or not?
+            line = line.ljust(COLUMNS)
+            print(line)
+    if len(roots) > 2:
+        quit(1)
 
 
 def main():
