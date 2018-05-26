@@ -67,8 +67,13 @@ COLOR_MAP = {
     '/usr/bin/ranlib': LYELLOW,
     '/usr/bin/ld': LYELLOW,
     '/usr/bin/gcc': LYELLOW,
+    # TODO: use regexes instead of per-version keys
+    '/usr/lib/gcc/x86_64-linux-gnu/4.8/cc1': LYELLOW,
+    '/usr/lib/gcc/x86_64-linux-gnu/4.8/collect2': LYELLOW,
     '/usr/lib/gcc/x86_64-linux-gnu/7/cc1': LYELLOW,
     '/usr/lib/gcc/x86_64-linux-gnu/7/collect2': LYELLOW,
+    '/usr/lib/llvm-3.6/bin/clang': LYELLOW,
+    '/usr/lib/llvm-3.6/bin/clang++': LYELLOW,
     '/usr/bin/g++': LYELLOW,
     '/usr/bin/clang': LYELLOW,
     '/usr/bin/clang++': LYELLOW,
@@ -169,6 +174,10 @@ def handle_events(enterevt: dict, exitevt: dict):
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # Move up
     for i, root in enumerate(roots):
         for pre, _, node in RenderTree(root, style=STY):
+            # skip over leaf calls to tools
+            # TODO: a bottom up walk would be a better pruning strat
+            if node.is_leaf and node.color == DGRAY:
+                continue
             line = "{}{}{} ({})".format(pre, node.color, node.name, node.count)
             line = line + NO_COLOR
             # TODO: does not count escape codes or not?
