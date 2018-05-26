@@ -28,29 +28,41 @@ COLUMNS, LINES = shutil.get_terminal_size((80, 20))
 # TODO: use a tree-like structure here?
 COLOR_MAP = {
     # utilities -> GRAY
+    '/bin/cat': DGRAY,
     '/bin/uname': DGRAY,
     '/bin/sh': DGRAY,
+    '/bin/ln': DGRAY,
+    '/bin/ls': DGRAY,
+    '/bin/mv': DGRAY,
     '/bin/rm': DGRAY,
+    '/bin/mkdir': DGRAY,
+    '/bin/rmdir': DGRAY,
     '/usr/bin/less': DGRAY,
     '/bin/bash': DGRAY,
     '/bin/tar': DGRAY,
+    '/bin/date': DGRAY,
     '/bin/gzip': DGRAY,
     '/bin/sed': DGRAY,
+    '/bin/grep': DGRAY,
     '/usr/bin/diff': DGRAY,
     '/usr/bin/dpkg': DGRAY,
     '/usr/bin/dpkg-query': DGRAY,
     '/usr/bin/awk': DGRAY,
+    '/usr/bin/arch': DGRAY,
+    '/usr/bin/expr': DGRAY,
     '/usr/bin/gawk': DGRAY,
+    '/usr/bin/basename': DGRAY,
     '/usr/bin/env': DGRAY,
     '/usr/bin/find': DGRAY,
-    '/usr/bin/ar': DGRAY,
     '/usr/bin/nice': DGRAY,
     '/usr/bin/sort': DGRAY,
     '/usr/bin/print': DGRAY,
     '/usr/bin/wget': DGRAY,
     '/usr/bin/which': DGRAY,
+    '/usr/bin/touch': DGRAY,
     # host translators -> YELLOW
     '/usr/bin/yasm': LYELLOW,
+    '/usr/bin/ar': LYELLOW,
     '/usr/bin/as': LYELLOW,
     '/usr/bin/ranlib': LYELLOW,
     '/usr/bin/ld': LYELLOW,
@@ -65,6 +77,7 @@ COLOR_MAP = {
     '/usr/bin/cmake': LBLUE,
     '/usr/bin/ninja': LBLUE,
     '/usr/bin/pkg-config': LBLUE,
+    '/usr/bin/bear': LBLUE,
     # scripting engines -> BLUE
     '/usr/bin/python2.7': LBLUE,
     '/usr/bin/python3': LBLUE,
@@ -106,8 +119,7 @@ def parse_exit_evt(e: dict) -> dict:
 
 
 class CCNode(Node):
-    pass
-    # separator = "|"
+    separator = "|"
 
 
 def handle_events(enterevt: dict, exitevt: dict):
@@ -136,6 +148,8 @@ def handle_events(enterevt: dict, exitevt: dict):
         if cnode.name == child:
             # found existing child!
             cnode.count += 1
+            # associated with additional child pid
+            NODES[child_pid] = cnode
             break
     else:  # didn't find existing child!
         ccolor = COLOR_MAP.get(child, NO_COLOR)
@@ -145,11 +159,7 @@ def handle_events(enterevt: dict, exitevt: dict):
                                   color=ccolor,
                                   pid=child_pid)
 
-    # while pnode.parent:
-    #     pnode = pnode.parent
-    # assert pnode.is_root
-
-    # TODO: handle multiple roots
+    # handle multiple roots
     roots = [n for n in NODES.values() if n.is_root]
 
     # DISPLAY PART
@@ -158,14 +168,15 @@ def handle_events(enterevt: dict, exitevt: dict):
     sys.stdout.write(u"\u001b[" + str(1000) + "D")  # Move left
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # Move up
     for i, root in enumerate(roots):
-        for pre, _, node in RenderTree(pnode, style=STY):
-            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+        for pre, _, node in RenderTree(root, style=STY):
+            line = "{}{}{} ({})".format(pre, node.color, node.name, node.count)
             line = line + NO_COLOR
             # TODO: does not count escape codes or not?
             line = line.ljust(COLUMNS)
             print(line)
-    if len(roots) > 2:
-        quit(1)
+    # PP.pprint(NODES)
+    # if len(roots) > 2:
+    #     quit(1)
 
 
 def main():
