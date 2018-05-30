@@ -29,7 +29,7 @@ if locale -a | grep --ignore-case --quiet en_US.utf8; then
 fi
 
 FORMAT="%thread.tid#%evt.type#%proc.exepath#%proc.pname#%proc.pid#%proc.ppid"
-FORMAT="$FORMAT#%proc.args#%evt.args"
+FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="evt.type=execve or evt.type=clone and evt.failed=false and user.name=$(logname)"
 SYSDIG=sysdig
 # SYSDIG=$HOME/sysdig/build/userspace/sysdig/sysdig

@@ -29,13 +29,13 @@ class CCEvent(object):
     @staticmethod
     def parse(line: str) -> object:
         tokens = line.split('#')
-
         return CCEvent(tid=_parse_pid(tokens[0]),
-                       _type=tokens[1],
-                       exepath=tokens[2],
-                       pname=tokens[3],
-                       pid=_parse_pid(tokens[4]),
-                       ppid=_parse_pid(tokens[5]),
-                       pargs=tokens[6],
-                       eargs=tokens[7]
-                       )
+                    _type=tokens[1],
+                    exepath=tokens[2],
+                    pname=tokens[3],
+                    pid=_parse_pid(tokens[4]),
+                    ppid=_parse_pid(tokens[5]),
+                    pargs=tokens[6],
+                    eargs=tokens[7]
+                    )
+        

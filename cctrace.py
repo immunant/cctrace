@@ -3,7 +3,6 @@
 
 import os
 import sys
-import json
 import base64
 import pprint
 import shutil
@@ -147,11 +146,18 @@ def parse_evt_args(e: dict) -> dict:
 class CCNode(Node):
     separator = "|"
 
+    def __hash__(self):
+        res = 31 * hash(self.name)
+        for child in self.children:
+            res = res * 31 + hash(child)
+        return res
+
 
 def handle_execve(exitevt: dict):
     """
     TODO: deal with PID wrap-around.
     """
+    
     # exitevt = parse_evt_args(exitevt)
 
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
@@ -190,16 +196,30 @@ def handle_execve(exitevt: dict):
              UNKNOWN_PROC_LABEL]
     sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
+    duplicates = set()
+    forrest = []
     for root in roots:
-        for pre, _, node in RenderTree(root, style=STY):
-            # skip leaf nodes representing utility processes
-            if node.is_leaf and node.color == DGRAY:
+        for pre, _, node in RenderTree(root, style=STY):            
+            marker = hash(node) 
+            if node.parent:
+                marker = marker ^ hash(node.parent.name)
+            if marker in duplicates:
                 continue
-            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+            else:
+                duplicates.add(marker)
+            # skip leaf nodes representing utility processes
+            # if node.is_leaf and node.color == DGRAY:
+            #     continue
+            # skip leaf nodes representing configure calls
+            # if node.is_leaf and node.name.endswith("configure"):
+            #     continue
+            line = "{}{}{}".format(pre, node.color, node.name)
             line = line + NO_COLOR
             # TODO: do manual justification to ignore escape codes
-            line = line.ljust(COLUMNS)
-            print(line)
+            forrest.append(line.ljust(COLUMNS))
+
+    print("\n".join(forrest))
+
 
 
 def handle_clone(exitevt: dict):
@@ -219,7 +239,7 @@ def main():
     try:
         while True:
             line = sys.stdin.readline().rstrip()
-            while line.endswith('\\'):
+            while not line.endswith('##'):
                 line += sys.stdin.readline().rstrip()
 
             evt = CCEvent.parse(line)
