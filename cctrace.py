@@ -268,6 +268,11 @@ def main():
                 if not "res=0 " in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
+            elif evt.type == 'procexit':
+                # handle_procexit(evt)
+                # TODO: find a way to remove from
+                # NODES without loosing root nodes.
+                pass
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 
