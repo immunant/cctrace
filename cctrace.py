@@ -40,6 +40,7 @@ COLOR_MAP = {
     '/bin/mkdir': DGRAY,
     '/bin/rmdir': DGRAY,
     '/usr/bin/less': DGRAY,
+    '/usr/bin/sudo': DGRAY,
     '/bin/bash': DGRAY,
     '/bin/tar': DGRAY,
     '/bin/date': DGRAY,
@@ -66,6 +67,7 @@ COLOR_MAP = {
     '/usr/bin/yasm': LYELLOW,
     '/usr/bin/ar': LYELLOW,
     '/usr/bin/as': LYELLOW,
+    '/usr/bin/x86_64-linux-gnu-as': LYELLOW,
     '/usr/bin/ranlib': LYELLOW,
     '/usr/bin/ld': LYELLOW,
     '/usr/bin/gcc': LYELLOW,
@@ -78,6 +80,7 @@ COLOR_MAP = {
     '/usr/lib/gcc/x86_64-linux-gnu/7/collect2': LYELLOW,
     '/usr/lib/llvm-3.6/bin/clang': LYELLOW,
     '/usr/lib/llvm-3.6/bin/clang++': LYELLOW,
+    '/usr/bin/cc': LYELLOW,
     '/usr/bin/g++': LYELLOW,
     '/usr/bin/clang': LYELLOW,
     '/usr/bin/clang++': LYELLOW,
@@ -102,9 +105,12 @@ COLOR_MAP = defaultdict(str, COLOR_MAP)
 PP = pprint.PrettyPrinter(indent=2)
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
 STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
+SHELL = os.environ.get('SHELL', '').lower()
 
 UNKNOWN_PROC_LABEL = "[unknown executable]"
 UNKNOWN_PROC_COLOR = FAIL
+
+SYSDIG_NA = '<NA>'
 
 NODES = dict()
 
@@ -161,13 +167,21 @@ def handle_execve(exitevt: dict):
     # exitevt = parse_evt_args(exitevt)
 
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
-    child = exitevt.exepath
-    ccolor = COLOR_MAP.get(child, NO_COLOR)
+    
+    child = exitevt.exepath 
+    # sometimes 'exepath' is blank. TODO: can this be avoided?
+    if child == SYSDIG_NA:
+        # TODO: do something less hackish
+        eargs = exitevt.eargs
+        if "exe=sh " in eargs:
+            child = '/bin/sh'
+        elif "filename=" in eargs:
+            child = eargs[9:]
+        else:
+            print(exitevt.eargs)
+            assert False
 
-    # sometimes 'exepath' is blank. high load might cause this.
-    if not child.strip():
-        child = UNKNOWN_PROC_LABEL
-        ccolor = UNKNOWN_PROC_COLOR
+    ccolor = COLOR_MAP.get(child, NO_COLOR)
 
     # the lookup of the parent process can fail if the process was
     # started before we started running sysdig
@@ -188,21 +202,22 @@ def handle_execve(exitevt: dict):
     # display process tree                   #
     #                                        #
     # TODO: extract into separate function   #
-    # TODO: better pruning of boring nodes   #
+    # TODO: async/concurrent printing        #
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-    # handle multiple roots
-    roots = [n for n in NODES.values() if n.is_root and n.name !=
-             UNKNOWN_PROC_LABEL]
+    # handle multiple roots (ignoring non-shell processes)
+    roots = [n for n in NODES.values() if n.is_root and n.name == SHELL]
+    
     sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
     duplicates = set()
     forrest = []
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):            
+            # TODO: more robust pruning of nodes
             marker = hash(node) 
             if node.parent:
-                marker = marker ^ hash(node.parent.name)
+                marker = marker ^ hash(node.parent.pid)
             if marker in duplicates:
                 continue
             else:
@@ -213,7 +228,8 @@ def handle_execve(exitevt: dict):
             # skip leaf nodes representing configure calls
             # if node.is_leaf and node.name.endswith("configure"):
             #     continue
-            line = "{}{}{}".format(pre, node.color, node.name)
+            # line = "{}{}{}".format(pre, node.color, node.name)
+            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
             line = line + NO_COLOR
             # TODO: do manual justification to ignore escape codes
             forrest.append(line.ljust(COLUMNS))
@@ -238,6 +254,7 @@ def handle_clone(exitevt: dict):
 def main():
     try:
         while True:
+            # TODO: detect process termination and update NODES
             line = sys.stdin.readline().rstrip()
             while not line.endswith('##'):
                 line += sys.stdin.readline().rstrip()
