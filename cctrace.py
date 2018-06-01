@@ -112,7 +112,8 @@ UNKNOWN_PROC_COLOR = FAIL
 
 SYSDIG_NA = '<NA>'
 
-NODES = dict()
+NODES = dict()  # holds nodes for active processes
+ROOTS = set()  # holds root nodes, never shrinks
 
 
 def parse_evt_args(e: dict) -> dict:
@@ -160,10 +161,6 @@ class CCNode(Node):
 
 
 def handle_execve(exitevt: dict):
-    """
-    TODO: deal with PID wrap-around.
-    """
-    
     # exitevt = parse_evt_args(exitevt)
 
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
@@ -206,13 +203,13 @@ def handle_execve(exitevt: dict):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
     # handle multiple roots (ignoring non-shell processes)
-    roots = [n for n in NODES.values() if n.is_root and n.name == SHELL]
+
     
     sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
     duplicates = set()
     forrest = []
-    for root in roots:
+    for root in ROOTS:
         for pre, _, node in RenderTree(root, style=STY):            
             # TODO: more robust pruning of nodes
             marker = hash(node) 
@@ -237,7 +234,6 @@ def handle_execve(exitevt: dict):
     print("\n".join(forrest))
 
 
-
 def handle_clone(exitevt: dict):
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
     assert child_pid > 0, "Unexpected child pid: {}".format(child_pid)
@@ -250,6 +246,15 @@ def handle_clone(exitevt: dict):
                              CCNode(exitevt.exepath, parent=pnode, color=color,
                                     pid=child_pid))
 
+    # update ROOTS (ignoring anyhing but shells)
+    if pnode.is_root and pnode.name == SHELL:
+        ROOTS.add( pnode)
+
+
+def handle_procexit(evt: dict):
+     pid = evt.pid
+     node = NODES.pop(pid, None)  # removes node if present   
+     
 
 def main():
     try:
@@ -269,10 +274,7 @@ def main():
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == 'procexit':
-                # handle_procexit(evt)
-                # TODO: find a way to remove from
-                # NODES without loosing root nodes.
-                pass
+                handle_procexit(evt)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 
