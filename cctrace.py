@@ -116,48 +116,50 @@ NODES = dict()  # holds nodes for active processes
 ROOTS = set()  # holds root nodes, never shrinks
 
 
-def parse_evt_args(e: dict) -> dict:
-    def split_kv(s: str) -> str:
-        try:
-            i = s.index('=')
-            return s[:i], s[i+1:]
-        except ValueError:
-            print("no = in :" + s)
-
-    # def parse_env(env: str) -> dict:
-    #     # base64 str -> bytes -> str
-    #     env = base64.b64decode(env).decode("utf-8")
-    #     env = [split_kv(a) for a in env.split('\x00') if a]
-    #     return {k: v for k, v in env}
-
-    # TODO: handle something like:
-    # 'res=61211(code) exe=/usr/share/code/code --unity-launch args= '
-    #           'tid=11013(code) pid=11013(code) ptid=1751(init) cwd= '
-    #           'fdlimit=4096 pgft_maj=146 pgft_min=61427 vm_size=1421332 '
-    #           'vm_rss=106824 vm_swap=0 comm=code '
-
-    args = e.pop('evt.args').rstrip().split(' ')
-    igno = ['cgroups', 'fdlimit', 'vm_size',
-            'vm_rss', 'vm_swap', 'pgft_maj', 'pgft_min']
-    args = {k: v for k, v in [split_kv(a) for a in args] if k not in igno}
-
-    # parse out env variables
-    # args['env'] = parse_env(args['env'])
-    if 'env' in args:
-        args.pop('env')
-    e.update(args)
-
-    return e
-
-
 class CCNode(Node):
     separator = "|"
 
-    def __hash__(self):
+    def hash_subtree(self):
         res = 31 * hash(self.name)
         for child in self.children:
-            res = res * 31 + hash(child)
+            res = res * 31 + child.hash_subtree()
         return res
+
+    def __hash__(self):
+        return hash(self.name)
+
+
+def print_tree():
+    sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
+    sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
+    duplicates = set()
+    forrest = []
+    for root in ROOTS:
+        for pre, _, node in RenderTree(root, style=STY):            
+            # TODO: more robust pruning of nodes
+            marker = node.hash_subtree() 
+            if node.parent:
+                marker = marker * 31 + hash(node.parent.name)
+            if marker in duplicates:
+                continue
+            else:
+                duplicates.add(marker)
+            # skip leaf nodes representing utility processes
+            if node.is_leaf and node.color == DGRAY:
+                continue
+            # skip child nodes of configure calls
+            if node.parent and node.parent.name.endswith("configure"):
+                continue
+            # line = "{}{}{}".format(pre, node.color, node.name)
+            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+            line = line + NO_COLOR
+            # TODO: do manual justification to ignore escape codes
+            forrest.append(line.ljust(COLUMNS))
+
+    if len(forrest) > LINES:
+        forrest = forrest[:LINES-1]
+
+    print("\n".join(forrest))
 
 
 def handle_execve(exitevt: dict):
@@ -195,43 +197,7 @@ def handle_execve(exitevt: dict):
         NODES[child_pid] = \
             CCNode(child, parent=pnode, color=ccolor, pid=child_pid)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-    # display process tree                   #
-    #                                        #
-    # TODO: extract into separate function   #
-    # TODO: async/concurrent printing        #
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-    # handle multiple roots (ignoring non-shell processes)
-
-    
-    sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
-    sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
-    duplicates = set()
-    forrest = []
-    for root in ROOTS:
-        for pre, _, node in RenderTree(root, style=STY):            
-            # TODO: more robust pruning of nodes
-            marker = hash(node) 
-            if node.parent:
-                marker = marker ^ hash(node.parent.pid)
-            if marker in duplicates:
-                continue
-            else:
-                duplicates.add(marker)
-            # skip leaf nodes representing utility processes
-            # if node.is_leaf and node.color == DGRAY:
-            #     continue
-            # skip leaf nodes representing configure calls
-            # if node.is_leaf and node.name.endswith("configure"):
-            #     continue
-            # line = "{}{}{}".format(pre, node.color, node.name)
-            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
-            line = line + NO_COLOR
-            # TODO: do manual justification to ignore escape codes
-            forrest.append(line.ljust(COLUMNS))
-
-    print("\n".join(forrest))
+    print_tree()
 
 
 def handle_clone(exitevt: dict):
@@ -248,7 +214,7 @@ def handle_clone(exitevt: dict):
 
     # update ROOTS (ignoring anyhing but shells)
     if pnode.is_root and pnode.name == SHELL:
-        ROOTS.add( pnode)
+        ROOTS.add(pnode)
 
 
 def handle_procexit(evt: dict):
@@ -258,8 +224,8 @@ def handle_procexit(evt: dict):
 
 def main():
     try:
+        # TODO: use asyncio to handle input events?
         while True:
-            # TODO: detect process termination and update NODES
             line = sys.stdin.readline().rstrip()
             while not line.endswith('##'):
                 line += sys.stdin.readline().rstrip()
