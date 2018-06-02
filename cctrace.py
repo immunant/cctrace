@@ -118,26 +118,36 @@ class CCNode(Node):
     separator = "|"
 
     def hash_subtree(self):
-        res = 31 * hash(self.name)
+        res = hash(self.name)
         for child in self.children:
             res = res * 31 + child.hash_subtree()
+        return res
+
+    def hash_roots(self):
+        res = hash(self.name)
+        if not self.is_root:
+            res = res * 31 + self.parent.hash_roots()
         return res
 
     def __hash__(self):
         return hash(self.name)
 
 
+print_tree_last_lines = 0  # how many lines did print_tree output last time?
+
+
 def print_tree():
+    global print_tree_last_lines
     sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
     duplicates = set()
     forrest = []
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):
-            # TODO: more robust pruning of nodes
+
             marker = node.hash_subtree()
             if node.parent:
-                marker = marker * 31 + hash(node.parent.name)
+                marker = marker * 31 + node.parent.hash_roots()
             if marker in duplicates:
                 continue
             else:
@@ -155,7 +165,13 @@ def print_tree():
             forrest.append(line.ljust(COLUMNS))
 
     if len(forrest) > LINES:
-        forrest = forrest[:LINES - 1]
+        # forrest = forrest[:LINES - 1]
+        forrest = forrest[-LINES:]
+
+    blank_lines_needed = max(0, print_tree_last_lines - len(forrest))
+    print_tree_last_lines = len(forrest)
+
+    forrest += [" " * COLUMNS for _ in range(blank_lines_needed)]
 
     print("\n".join(forrest))
 
@@ -206,9 +222,15 @@ def handle_clone(exitevt: CCEvent):
     color = COLOR_MAP.get(exitevt.exepath, NO_COLOR)
     pnode = nodes_by_pid.setdefault(parent_pid,
                                     CCNode(exitevt.exepath, color=color, pid=parent_pid))
-    cnode = nodes_by_pid.setdefault(child_pid,
-                                    CCNode(exitevt.exepath, parent=pnode, color=color,
-                                           pid=child_pid))
+    cnode = nodes_by_pid.setdefault(child_pid, None)
+    if not cnode:
+        nodes_by_pid[child_pid] = CCNode(exitevt.exepath, parent=pnode, color=color, pid=child_pid)
+
+    # sanity check that all children have distinct pid's
+    # child_pids = set()
+    # for child in pnode.children:
+    #     assert child.pid not in child_pids
+    #     child_pids.add(child.pid)
 
     # update ROOTS (ignoring anyhing but shells)
     if pnode.is_root and pnode.name == SHELL:
