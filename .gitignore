@@ -109,3 +109,7 @@ venv.bak/
 
 # Vagrant
 .vagrant
+
+# JetBrains IDEs
+.idea/
+
