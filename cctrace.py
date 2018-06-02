@@ -3,15 +3,13 @@
 
 import os
 import sys
-import base64
 import pprint
 import shutil
 
 from collections import defaultdict
 from anytree import Node, RenderTree
-from anytree.node.exceptions import TreeError
 from anytree.render import AsciiStyle, ContStyle
-from anytree.iterators.levelordergroupiter import LevelOrderGroupIter
+# from anytree.iterators.levelordergroupiter import LevelOrderGroupIter
 
 from ccevent import CCEvent
 
@@ -112,8 +110,8 @@ UNKNOWN_PROC_COLOR = FAIL
 
 SYSDIG_NA = '<NA>'
 
-NODES = dict()  # holds nodes for active processes
-ROOTS = set()  # holds root nodes, never shrinks
+nodes_by_pid = dict()  # holds nodes for active processes
+roots = set()  # holds root nodes, never shrinks
 
 
 class CCNode(Node):
@@ -134,10 +132,10 @@ def print_tree():
     sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
     duplicates = set()
     forrest = []
-    for root in ROOTS:
-        for pre, _, node in RenderTree(root, style=STY):            
+    for root in roots:
+        for pre, _, node in RenderTree(root, style=STY):
             # TODO: more robust pruning of nodes
-            marker = node.hash_subtree() 
+            marker = node.hash_subtree()
             if node.parent:
                 marker = marker * 31 + hash(node.parent.name)
             if marker in duplicates:
@@ -157,17 +155,17 @@ def print_tree():
             forrest.append(line.ljust(COLUMNS))
 
     if len(forrest) > LINES:
-        forrest = forrest[:LINES-1]
+        forrest = forrest[:LINES - 1]
 
     print("\n".join(forrest))
 
 
-def handle_execve(exitevt: dict):
+def handle_execve(exitevt: CCEvent):
     # exitevt = parse_evt_args(exitevt)
 
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
-    
-    child = exitevt.exepath 
+
+    child = exitevt.exepath
     # sometimes 'exepath' is blank. TODO: can this be avoided?
     if child == SYSDIG_NA:
         # TODO: do something less hackish
@@ -186,41 +184,41 @@ def handle_execve(exitevt: dict):
     # started before we started running sysdig
     rnode = CCNode(UNKNOWN_PROC_LABEL,
                    color=UNKNOWN_PROC_COLOR, pid=parent_pid)
-    pnode = NODES.setdefault(parent_pid, rnode)
+    pnode = nodes_by_pid.setdefault(parent_pid, rnode)
 
-    cnode = NODES.get(child_pid, None)
+    cnode = nodes_by_pid.get(child_pid, None)
     if cnode:
         cnode.name = child
         cnode.color = ccolor
     else:
         # happens if a process executes multiple execve calls
-        NODES[child_pid] = \
+        nodes_by_pid[child_pid] = \
             CCNode(child, parent=pnode, color=ccolor, pid=child_pid)
 
     print_tree()
 
 
-def handle_clone(exitevt: dict):
+def handle_clone(exitevt: CCEvent):
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
     assert child_pid > 0, "Unexpected child pid: {}".format(child_pid)
     assert parent_pid != child_pid
 
     color = COLOR_MAP.get(exitevt.exepath, NO_COLOR)
-    pnode = NODES.setdefault(parent_pid,
-                             CCNode(exitevt.exepath, color=color, pid=parent_pid))
-    cnode = NODES.setdefault(child_pid,
-                             CCNode(exitevt.exepath, parent=pnode, color=color,
-                                    pid=child_pid))
+    pnode = nodes_by_pid.setdefault(parent_pid,
+                                    CCNode(exitevt.exepath, color=color, pid=parent_pid))
+    cnode = nodes_by_pid.setdefault(child_pid,
+                                    CCNode(exitevt.exepath, parent=pnode, color=color,
+                                           pid=child_pid))
 
     # update ROOTS (ignoring anyhing but shells)
     if pnode.is_root and pnode.name == SHELL:
-        ROOTS.add(pnode)
+        roots.add(pnode)
 
 
-def handle_procexit(evt: dict):
-     pid = evt.pid
-     node = NODES.pop(pid, None)  # removes node if present   
-     
+def handle_procexit(evt: CCEvent):
+    pid = evt.pid
+    nodes_by_pid.pop(pid, None)  # removes node if present
+
 
 def main():
     try:
