@@ -83,7 +83,11 @@ def _parse_pid(s: str) -> int:
     try:
         return int(s[:s.index('(')])
     except ValueError:  # '(' not found
-        return int(s)
+        try:
+            return int(s)
+        except ValueError:
+            print(s)
+            quit(1)
 
 
 class CCEvent(object):
@@ -107,6 +111,8 @@ class CCEvent(object):
     @staticmethod
     def parse(line: str) -> object:
         tokens = line.split(CCEvent.separator)
+        if len(tokens) == 7:
+            tokens.append(None)
         return CCEvent(tid=_parse_pid(tokens[0]),
                        _type=tokens[1],
                        exepath=tokens[2],
