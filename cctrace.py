@@ -42,6 +42,7 @@ class CCNode(Node):
     def __hash__(self):
         return hash(self.name)
 
+
 nodes_by_pid = dict()  # holds nodes for active processes
 roots = set()  # holds root nodes, never shrinks
 
@@ -140,7 +141,7 @@ def main():
                 handle_execve(evt)
             elif evt.type == 'clone':
                 # clone returns twice; once for parent and child.
-                if not "res=0 " in evt.eargs:
+                if "res=0 " not in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == 'procexit':

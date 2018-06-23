@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import re
-from collections import defaultdict
+
 
 class Colors:
     # Terminal escape codes
@@ -11,6 +11,7 @@ class Colors:
     LYELLOW = '\033[93m'
     LBLUE = '\033[94m'
     NO_COLOR = '\033[0m'
+
 
 # Known binaries
 COLOR_MAP = {
