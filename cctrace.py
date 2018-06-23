@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import sys
 
 from anytree import Node, RenderTree
@@ -74,16 +75,19 @@ def print_tree(roots: set) -> None:
     print("\n".join(forrest))
 
 
+_eargs_re = re.compile(r".*exe=(.*)\sargs=")
+
+
 def handle_execve(exitevt: CCEvent):
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
 
     child = exitevt.exepath
     # sometimes 'exepath' is blank. TODO: can this be avoided?
     if child == SYSDIG_NA:
-        # TODO: do something less hackish
         eargs = exitevt.eargs
-        if "exe=sh " in eargs:
-            child = '/bin/sh'
+        m = _eargs_re.match(eargs)
+        if m:
+            child = m.group(1)
         elif "filename=" in eargs:
             child = eargs[9:]
         else:
