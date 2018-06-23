@@ -134,7 +134,10 @@ def handle_procexit(evt: CCEvent):
 def main():
     try:
         while True:
-            line = sys.stdin.readline()
+            line = sys.stdin.readline().rstrip()
+            while not line.endswith('##'):
+                line += sys.stdin.readline().rstrip()
+
             evt = CCEvent.parse(line)
 
             if evt.type == 'execve':
