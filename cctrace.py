@@ -3,21 +3,13 @@
 
 import os
 import sys
-import pprint
-import shutil
 
-from collections import defaultdict
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
-# from anytree.iterators.levelordergroupiter import LevelOrderGroupIter
 
 from ccevent import CCEvent, Colors, get_color
 
-# Terminal dimensions
-COLUMNS, LINES = shutil.get_terminal_size((80, 20))
 
-
-PP = pprint.PrettyPrinter(indent=2)
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
 STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
 SHELL = os.environ.get('SHELL', '').lower()
@@ -27,9 +19,6 @@ UNKNOWN_PROC_COLOR = Colors.FAIL
 
 SYSDIG_NA = '<NA>'
 
-nodes_by_pid = dict()  # holds nodes for active processes
-roots = set()  # holds root nodes, never shrinks
-
 
 class CCNode(Node):
     separator = "|"
@@ -37,7 +26,6 @@ class CCNode(Node):
     @property
     def color(self):
         return get_color(self.name)
-
 
     def hash_subtree(self):
         res = hash(self.name)
@@ -54,14 +42,11 @@ class CCNode(Node):
     def __hash__(self):
         return hash(self.name)
 
+nodes_by_pid = dict()  # holds nodes for active processes
+roots = set()  # holds root nodes, never shrinks
 
-print_tree_last_lines = 0  # how many lines did print_tree output last time?
 
-
-def print_tree():
-    global print_tree_last_lines
-    sys.stdout.write(u"\u001b[" + str(1000) + "D")  # move left
-    sys.stdout.write(u"\u001b[" + str(1000) + "A")  # move up
+def print_tree(roots: set) -> None:
     duplicates = set()
     forrest = []
     for root in roots:
@@ -83,24 +68,12 @@ def print_tree():
             # line = "{}{}{}".format(pre, node.color, node.name)
             line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
             line = line + Colors.NO_COLOR
-            # TODO: do manual justification to ignore escape codes
-            forrest.append(line.ljust(COLUMNS))
-
-    if len(forrest) > LINES:
-        # forrest = forrest[:LINES - 1]
-        forrest = forrest[-LINES:]
-
-    blank_lines_needed = max(0, print_tree_last_lines - len(forrest))
-    print_tree_last_lines = len(forrest)
-
-    forrest += [" " * COLUMNS for _ in range(blank_lines_needed)]
+            forrest.append(line)
 
     print("\n".join(forrest))
 
 
 def handle_execve(exitevt: CCEvent):
-    # exitevt = parse_evt_args(exitevt)
-
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
 
     child = exitevt.exepath
@@ -128,8 +101,6 @@ def handle_execve(exitevt: CCEvent):
         # happens if a process executes multiple execve calls
         nodes_by_pid[child_pid] = \
             CCNode(child, parent=pnode, pid=child_pid)
-
-    print_tree()
 
 
 def handle_clone(exitevt: CCEvent):
@@ -161,12 +132,8 @@ def handle_procexit(evt: CCEvent):
 
 def main():
     try:
-        # TODO: use asyncio to handle input events?
         while True:
-            line = sys.stdin.readline().rstrip()
-            while not line.endswith('##'):
-                line += sys.stdin.readline().rstrip()
-
+            line = sys.stdin.readline()
             evt = CCEvent.parse(line)
 
             if evt.type == 'execve':
@@ -182,8 +149,8 @@ def main():
                 assert False, "Unexpected event type: " + str(evt.type)
 
     except KeyboardInterrupt:
-        sys.stdout.write("\n")
-        sys.stdout.flush()
+        print()
+        print_tree(roots)
 
 
 if __name__ == "__main__":

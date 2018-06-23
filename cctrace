@@ -9,8 +9,8 @@ fi
 
 # check that sysdig is installed and working
 if type "sysdig" > /dev/null 2>&1; then
-  sysdig --version | grep -q "sysdig version 0.21.0" || \
-    { echo >&2 "sysdig version 0.21.0 expected"; exit 1; }
+  sysdig --version | grep -q "sysdig version 0.21" || \
+    { echo >&2 "sysdig version 0.21 expected"; exit 1; }
 else
     echo >&2 "Please make sure sysdig is installed"; exit 1
 fi
@@ -32,6 +32,5 @@ FORMAT="%thread.tid#%evt.type#%proc.exepath#%proc.pname#%proc.pid#%proc.ppid"
 FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="evt.type=execve or evt.type=clone or evt.type=procexit and evt.failed=false and user.name=$(logname)"
 SYSDIG=sysdig
-# SYSDIG=$HOME/sysdig/build/userspace/sysdig/sysdig
-$SYSDIG --print-base64 -p"$FORMAT" $FILTER \
+${SYSDIG} --print-base64 -p"$FORMAT" ${FILTER} \
   | python3 cctrace.py
