@@ -104,8 +104,13 @@ def handle_execve(exitevt: CCEvent):
         cnode.name = child
     else:
         # happens if a process executes multiple execve calls
-        nodes_by_pid[child_pid] = \
-            CCNode(child, parent=pnode, pid=child_pid)
+        cnode = CCNode(child, parent=pnode, pid=child_pid)
+        nodes_by_pid[child_pid] = cnode
+
+    # skip unimportant processes
+    if cnode.color == Colors.LYELLOW:
+        m = "execve: {} ({})".format(cnode.name, cnode.pid)
+        print(m)
 
 
 def handle_clone(exitevt: CCEvent):
