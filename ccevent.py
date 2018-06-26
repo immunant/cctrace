@@ -52,6 +52,8 @@ _host_util_re = re.compile(r"/(usr/)?bin/.*")
 _build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear)")
 _gcc_lib_re = re.compile(r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc1(plus)?|collect2)")
 _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
+# binaries that are likely compilers
+_compiler_re = re.compile(r"(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)")
 
 
 def get_color(exepath: str) -> str:
@@ -107,6 +109,10 @@ class CCEvent(object):
     @property
     def color(self):
         return get_color(self.exepath)
+
+    @property
+    def is_compiler(self):
+        assert False, "not implemented"
 
     @staticmethod
     def parse(line: str) -> object:

@@ -4,6 +4,7 @@
 import os
 import re
 import sys
+import argparse
 
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
@@ -78,7 +79,7 @@ def print_tree(roots: set) -> None:
 _eargs_re = re.compile(r".*exe=(.*)\sargs=")
 
 
-def handle_execve(exitevt: CCEvent):
+def handle_execve(exitevt: CCEvent) -> CCEvent:
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
 
     child = exitevt.exepath
@@ -106,11 +107,8 @@ def handle_execve(exitevt: CCEvent):
         # happens if a process executes multiple execve calls
         cnode = CCNode(child, parent=pnode, pid=child_pid)
         nodes_by_pid[child_pid] = cnode
-
-    # skip unimportant processes
-    if cnode.color == Colors.LYELLOW:
-        m = "execve: {} ({})".format(cnode.name, cnode.pid)
-        print(m)
+    
+    return cnode
 
 
 def handle_clone(exitevt: CCEvent):
@@ -140,7 +138,50 @@ def handle_procexit(evt: CCEvent):
     nodes_by_pid.pop(pid, None)  # removes node if present
 
 
+def _check_multicompiler_prefix(prefix: str) -> bool:
+    slugs = [
+        'bin/clang',
+        'bin/clang++',
+        'bin/llvm-nm',
+        'bin/llvm-ar',
+        'bin/llvm-ranlib',
+        'bin/ld.gold',
+    ] 
+
+    if not os.path.isdir(prefix):
+        return False
+
+    for s in slugs:
+        if not os.path.exists(os.path.join(prefix, s)):
+            return False
+
+    # TODO: invoke clang --version and look for multicompiler in output
+    return True
+
+
+def _parse_args():
+    """
+    define and parse command line arguments here.
+    """
+    desc = 'listen for compiler invocations.'
+    parser = argparse.ArgumentParser(description=desc)
+    mp_default = os.getenv('HOME')
+    mp_default = os.path.join(mp_default,
+                              "selfrando-testing/local")
+    parser.add_argument('-m', '--multicompiler-prefix', 
+                        default=mp_default,
+                        action='store', dest='multicompiler_prefix',
+                        help='set multicompiler install prefix')
+
+    args = parser.parse_args()
+    if not _check_multicompiler_prefix(args.multicompiler_prefix):
+        args.multicompiler_prefix = None
+    return args
+
+
 def main():
+    args = _parse_args()
+
     try:
         while True:
             line = sys.stdin.readline().rstrip()
@@ -150,7 +191,14 @@ def main():
             evt = CCEvent.parse(line)
 
             if evt.type == 'execve':
-                handle_execve(evt)
+                cnode = handle_execve(evt)
+                # TODO: take action based on args
+                # TODO: want mode that prints if compiler AND not under
+                # multicompiler prefix. Print tree from root node.
+                if args.multicompiler_prefix and \
+                   cnode.name.startswith(args.multicompiler_prefix):
+                   print("mc: {} ({})".format(cnode.name, cnode.pid))
+
             elif evt.type == 'clone':
                 # clone returns twice; once for parent and child.
                 if "res=0 " not in evt.eargs:

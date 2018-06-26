@@ -33,4 +33,4 @@ FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="evt.type=execve or evt.type=clone or evt.type=procexit and evt.failed=false and user.name=$(logname)"
 SYSDIG=sysdig
 ${SYSDIG} --print-base64 -p"$FORMAT" ${FILTER} \
-  | python3 cctrace.py
+  | python3 cctrace.py "$@"
