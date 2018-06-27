@@ -23,7 +23,7 @@ SYSDIG_NA = '<NA>'
 
 
 class CCNode(Node):
-    separator = "|"
+    separator = b"|"
 
     @property
     def color(self):
@@ -85,7 +85,7 @@ def handle_execve(exitevt: CCEvent) -> CCEvent:
     child = exitevt.exepath
     # sometimes 'exepath' is blank. TODO: can this be avoided?
     if child == SYSDIG_NA:
-        eargs = exitevt.eargs
+        eargs = str(exitevt.eargs)
         m = _eargs_re.match(eargs)
         if m:
             child = m.group(1)
@@ -181,16 +181,17 @@ def _parse_args():
 
 def main():
     args = _parse_args()
-
+    eol = b'##\n'
     try:
         while True:
-            line = sys.stdin.readline().rstrip()
-            while not line.endswith('##'):
-                line += sys.stdin.readline().rstrip()
+            # read input as bytes since its not guaranteed to be UTF-8
+            line = sys.stdin.buffer.readline()
+            while not line.endswith(eol):
+                line += sys.stdin.buffer.readline() 
 
             evt = CCEvent.parse(line)
 
-            if evt.type == 'execve':
+            if evt.type == b'execve':
                 cnode = handle_execve(evt)
                 # TODO: take action based on args
                 # TODO: want mode that prints if compiler AND not under
@@ -199,12 +200,12 @@ def main():
                    cnode.name.startswith(args.multicompiler_prefix):
                    print("mc: {} ({})".format(cnode.name, cnode.pid))
 
-            elif evt.type == 'clone':
+            elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
-                if "res=0 " not in evt.eargs:
+                if b"res=0 " not in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
-            elif evt.type == 'procexit':
+            elif evt.type == b'procexit':
                 handle_procexit(evt)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)

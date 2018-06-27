@@ -24,8 +24,8 @@ fi
 
 # UTF-8 output is required for non-ASCII tree render styles
 if locale -a | grep --ignore-case --quiet en_US.utf8; then
-    LANG="en_US.UTF-8"
-    LC_ALL="en_US.UTF-8" # overrides all other LC_* variables
+    export LANG="en_US.UTF-8"
+    export LC_ALL="en_US.UTF-8" # overrides all other LC_* variables
 fi
 
 FORMAT="%thread.tid#%evt.type#%proc.exepath#%proc.pname#%proc.pid#%proc.ppid"
@@ -33,4 +33,4 @@ FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="evt.type=execve or evt.type=clone or evt.type=procexit and evt.failed=false and user.name=$(logname)"
 SYSDIG=sysdig
 ${SYSDIG} --print-base64 -p"$FORMAT" ${FILTER} \
-  | python3 cctrace.py "$@"
+  | python3 -u cctrace.py "$@"

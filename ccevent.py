@@ -83,7 +83,7 @@ def _parse_pid(s: str) -> int:
     123(ab) -> 123
     """
     try:
-        return int(s[:s.index('(')])
+        return int(s[:s.index(b'(')])
     except ValueError:  # '(' not found
         try:
             return int(s)
@@ -93,10 +93,10 @@ def _parse_pid(s: str) -> int:
 
 
 class CCEvent(object):
-    separator = "#"
+    separator = b'#'
 
-    def __init__(self, tid: int, _type: str, exepath: str, pname: str,
-                 pid: int, ppid: int, pargs: str, eargs: str):
+    def __init__(self, tid: int, _type: bytes, exepath: str, pname: str,
+                 pid: int, ppid: int, pargs: bytes, eargs: bytes):
         self.tid = tid
         self.type = _type
         self.exepath = exepath
@@ -121,14 +121,15 @@ class CCEvent(object):
             tokens.append(None)
         return CCEvent(tid=_parse_pid(tokens[0]),
                        _type=tokens[1],
-                       exepath=tokens[2],
-                       pname=tokens[3],
+                       exepath=str(tokens[2], encoding='utf-8'),
+                       pname=str(tokens[3], encoding='utf-8'),
                        pid=_parse_pid(tokens[4]),
                        ppid=_parse_pid(tokens[5]),
                        pargs=tokens[6],
                        eargs=tokens[7])
 
     def __str__(self):
-        return CCEvent.separator.join([str(self.tid), self.type, self.exepath,
-                                       self.pname, str(self.pid), str(self.ppid),
-                                       self.pargs, self.eargs])
+        return "#".join([str(self.tid), str(self.type), self.exepath,
+                                       self.pname, str(self.pid), 
+                                       str(self.ppid),
+                                       str(self.pargs), str(self.eargs)])
