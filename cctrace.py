@@ -9,7 +9,7 @@ import argparse
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
-from ccevent import CCEvent, Colors, get_color
+from ccevent import CCEvent, Colors, get_color, compiler_drivers
 
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -17,7 +17,7 @@ STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
 SHELL = os.environ.get('SHELL', '').lower()
 
 UNKNOWN_PROC_LABEL = "[unknown executable]"
-UNKNOWN_PROC_COLOR = Colors.FAIL
+UNKNOWN_PROC_COLOR = Colors.LRED
 
 SYSDIG_NA = '<NA>'
 
@@ -70,6 +70,10 @@ def print_tree(roots: set) -> None:
                 continue
             # line = "{}{}{}".format(pre, node.color, node.name)
             line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+            # nodes representing compiler drivers have version information
+            cc_ver = compiler_drivers.get(node.name, None)
+            if cc_ver:
+                line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
             forrest.append(line)
 
