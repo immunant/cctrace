@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 
+import os
 import re
+import subprocess as sp
+from typing import Optional, List
 
 
 class Colors:
     # Terminal escape codes
     DGRAY = '\033[90m'
-    FAIL = '\033[91m'
+    LRED = '\033[91m'
     LGREEN = '\033[92m'
     LYELLOW = '\033[93m'
     LBLUE = '\033[94m'
+    LMAGENTA = '\033[95m'
+    LCYAN = '\033[96m'
     NO_COLOR = '\033[0m'
 
 
@@ -28,7 +33,7 @@ COLOR_MAP = {
     '/usr/bin/g++': Colors.LYELLOW,
     '/usr/bin/clang': Colors.LYELLOW,
     '/usr/bin/clang++': Colors.LYELLOW,
-    # build tools
+    # build tools -> BLUE
     '/usr/bin/make': Colors.LBLUE,
     '/usr/bin/cmake': Colors.LBLUE,
     '/usr/bin/ccmake': Colors.LBLUE,
@@ -44,16 +49,32 @@ COLOR_MAP = {
     '/usr/bin/ruby': Colors.LBLUE,
 }
 
-
 _known_tools = dict()
+compiler_drivers = dict()
 _host_python_re = re.compile(r"/usr/(local/)?bin/python(\d\.\d|\d)?")
 _host_tclsh_re = re.compile(r"/usr/(local/)?bin/tclsh(\d\.\d|\d)?")
 _host_util_re = re.compile(r"/(usr/)?bin/.*")
-_build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear)")
-_gcc_lib_re = re.compile(r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc1(plus)?|collect2)")
+_build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache)")
+_gcc_lib_re = re.compile(r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
 _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
-# binaries that are likely compilers
-_compiler_re = re.compile(r"(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)")
+# binaries that are likely compiler drivers
+_compiler_driver_re = re.compile(r"[^\0]+/(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)")
+
+
+def get_compiler_ver(exepath: str) -> Optional[str]:
+    """
+    TODO: move compiler identification logic into separate file?
+    """
+    exepath = os.path.realpath(exepath)  # canonicalize path
+    try:
+        p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
+        stdout, stderr = p.communicate()
+        ver = stdout.split(b'\n', 1)[0]  # get first line
+        # print("{} -> {}".format(exepath, ver))
+        ver = ver.decode()  # bytes -> str
+        return re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info
+    except OSError:
+        return None
 
 
 def get_color(exepath: str) -> str:
@@ -68,6 +89,10 @@ def get_color(exepath: str) -> str:
     elif _gcc_lib_re.match(exepath) or \
             _llvm_lib_re.match(exepath):
         color = Colors.LYELLOW
+    elif _compiler_driver_re.match(exepath):
+        color = Colors.LRED
+        if exepath not in compiler_drivers:
+            compiler_drivers[exepath] = get_compiler_ver(exepath)
     else:
         color = COLOR_MAP.get(exepath, Colors.NO_COLOR)
 
@@ -78,7 +103,7 @@ def get_color(exepath: str) -> str:
     return color
 
 
-def _parse_pid(s: str) -> int:
+def _parse_pid(s: bytes) -> int:
     """
     123(ab) -> 123
     """
@@ -89,7 +114,7 @@ def _parse_pid(s: str) -> int:
             return int(s)
         except ValueError:
             print(s)
-            quit(1)
+            assert False
 
 
 class CCEvent(object):
@@ -110,13 +135,9 @@ class CCEvent(object):
     def color(self):
         return get_color(self.exepath)
 
-    @property
-    def is_compiler(self):
-        assert False, "not implemented"
-
     @staticmethod
-    def parse(line: str) -> object:
-        tokens = line.split(CCEvent.separator)
+    def parse(line: bytes) -> object:
+        tokens = line.split(CCEvent.separator)  # type: List[Optional[bytes]]
         if len(tokens) == 7:
             tokens.append(None)
         return CCEvent(tid=_parse_pid(tokens[0]),
@@ -130,6 +151,6 @@ class CCEvent(object):
 
     def __str__(self):
         return "#".join([str(self.tid), str(self.type), self.exepath,
-                                       self.pname, str(self.pid), 
-                                       str(self.ppid),
-                                       str(self.pargs), str(self.eargs)])
+                         self.pname, str(self.pid),
+                         str(self.ppid),
+                         str(self.pargs), str(self.eargs)])
