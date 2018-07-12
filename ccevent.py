@@ -28,6 +28,8 @@ COLOR_MAP = {
     '/usr/bin/x86_64-linux-gnu-as': Colors.LYELLOW,
     '/usr/bin/ranlib': Colors.LYELLOW,
     '/usr/bin/ld': Colors.LYELLOW,
+    '/usr/bin/ld.bfd': Colors.LYELLOW,
+    '/usr/bin/ld.gold': Colors.LYELLOW,
     '/usr/bin/gcc': Colors.LYELLOW,
     '/usr/bin/cc': Colors.LYELLOW,
     '/usr/bin/g++': Colors.LYELLOW,
@@ -54,7 +56,7 @@ compiler_drivers = dict()
 _host_python_re = re.compile(r"/usr/(local/)?bin/python(\d\.\d|\d)?")
 _host_tclsh_re = re.compile(r"/usr/(local/)?bin/tclsh(\d\.\d|\d)?")
 _host_util_re = re.compile(r"/(usr/)?bin/.*")
-_build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache)")
+_build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)")
 _gcc_lib_re = re.compile(r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
 _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
 # binaries that are likely compiler drivers
