@@ -150,7 +150,7 @@ def _check_multicompiler_prefix(prefix: str) -> bool:
         'bin/llvm-ar',
         'bin/llvm-ranlib',
         'bin/ld.gold',
-    ] 
+    ]
 
     if not os.path.isdir(prefix):
         return False
@@ -172,7 +172,7 @@ def _parse_args():
     mp_default = os.getenv('HOME')
     mp_default = os.path.join(mp_default,
                               "selfrando-testing/local")
-    parser.add_argument('-m', '--multicompiler-prefix', 
+    parser.add_argument('-m', '--multicompiler-prefix',
                         default=mp_default,
                         action='store', dest='multicompiler_prefix',
                         help='set multicompiler install prefix')
@@ -191,7 +191,7 @@ def main():
             # read input as bytes since its not guaranteed to be UTF-8
             line = sys.stdin.buffer.readline()
             while not line.endswith(eol):
-                line += sys.stdin.buffer.readline() 
+                line += sys.stdin.buffer.readline()
 
             evt = CCEvent.parse(line)
 
@@ -202,7 +202,7 @@ def main():
                 # multicompiler prefix. Print tree from root node.
                 if args.multicompiler_prefix and \
                    cnode.name.startswith(args.multicompiler_prefix):
-                   print("mc: {} ({})".format(cnode.name, cnode.pid))
+                    print("mc: {} ({})".format(cnode.name, cnode.pid))
 
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
