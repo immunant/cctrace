@@ -51,8 +51,7 @@ COLOR_MAP = {
     '/usr/bin/ruby': Colors.LBLUE,
 }
 
-_known_tools = dict()
-compiler_drivers = dict()
+
 _host_python_re = re.compile(r"/usr/(local/)?bin/python(\d\.\d|\d)?")
 _host_tclsh_re = re.compile(r"/usr/(local/)?bin/tclsh(\d\.\d|\d)?")
 _host_util_re = re.compile(r"/(usr/)?bin/.*")
@@ -67,6 +66,14 @@ def get_compiler_ver(exepath: str) -> Optional[str]:
     """
     TODO: move compiler identification logic into separate file?
     """
+    version = get_compiler_ver.cache.get(exepath, None)
+    if version:
+        return version
+
+    m = _compiler_driver_re.match(exepath)
+    if not m:
+        return None
+
     exepath = os.path.realpath(exepath)  # canonicalize path
     try:
         p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
@@ -74,35 +81,42 @@ def get_compiler_ver(exepath: str) -> Optional[str]:
         ver = stdout.split(b'\n', 1)[0]  # get first line
         # print("{} -> {}".format(exepath, ver))
         ver = ver.decode()  # bytes -> str
-        return re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info
+        ver = re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info if any
+        get_compiler_ver.cache[exepath] = ver
+        return ver
     except OSError:
         return None
 
 
+get_compiler_ver.cache = dict()  # init cache
+
+
 def get_color(exepath: str) -> str:
-    color = _known_tools.get(exepath, None)
+    color = get_color.cache.get(exepath, None)
     if color:
         return color
 
-    if _host_python_re.match(exepath) or \
+    cc_ver = get_compiler_ver(exepath)
+    if cc_ver:
+        color = Colors.LRED
+    elif _host_python_re.match(exepath) or \
             _host_tclsh_re.match(exepath) or \
             _build_tool_re.match(exepath):
         color = Colors.LBLUE
     elif _gcc_lib_re.match(exepath) or \
             _llvm_lib_re.match(exepath):
         color = Colors.LYELLOW
-    elif _compiler_driver_re.match(exepath):
-        color = Colors.LRED
-        if exepath not in compiler_drivers:
-            compiler_drivers[exepath] = get_compiler_ver(exepath)
     else:
         color = COLOR_MAP.get(exepath, Colors.NO_COLOR)
 
     if color == Colors.NO_COLOR and _host_util_re.match(exepath):
         color = Colors.DGRAY
 
-    _known_tools[exepath] = color
+    get_color.cache[exepath] = color
     return color
+
+
+get_color.cache = dict()
 
 
 def _parse_pid(s: bytes) -> int:
@@ -150,9 +164,3 @@ class CCEvent(object):
                        ppid=_parse_pid(tokens[5]),
                        pargs=tokens[6],
                        eargs=tokens[7])
-
-    def __str__(self):
-        return "#".join([str(self.tid), str(self.type), self.exepath,
-                         self.pname, str(self.pid),
-                         str(self.ppid),
-                         str(self.pargs), str(self.eargs)])

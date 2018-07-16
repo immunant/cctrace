@@ -9,7 +9,7 @@ import argparse
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
-from ccevent import CCEvent, Colors, get_color, compiler_drivers
+from ccevent import CCEvent, Colors, get_color, get_compiler_ver
 
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -71,7 +71,7 @@ def print_tree(roots: set) -> None:
             # line = "{}{}{}".format(pre, node.color, node.name)
             line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
             # nodes representing compiler drivers have version information
-            cc_ver = compiler_drivers.get(node.name, None)
+            cc_ver = get_compiler_ver(node.name)
             if cc_ver:
                 line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
@@ -111,7 +111,7 @@ def handle_execve(exitevt: CCEvent) -> CCEvent:
         # happens if a process executes multiple execve calls
         cnode = CCNode(child, parent=pnode, pid=child_pid)
         nodes_by_pid[child_pid] = cnode
-    
+
     return cnode
 
 
@@ -137,7 +137,7 @@ def handle_clone(exitevt: CCEvent):
         roots.add(pnode)
 
 
-def handle_procexit(evt: CCEvent):
+def handle_procexit(evt: CCEvent, args):
     pid = evt.pid
     nodes_by_pid.pop(pid, None)  # removes node if present
 
@@ -210,7 +210,7 @@ def main():
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == b'procexit':
-                handle_procexit(evt)
+                handle_procexit(evt, args)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 
