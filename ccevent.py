@@ -2,6 +2,7 @@
 
 import os
 import re
+import base64
 import subprocess as sp
 from typing import Optional, List
 
@@ -147,9 +148,28 @@ class CCEvent(object):
         self.pargs = pargs
         self.eargs = eargs
 
+    def _parse_eargs_field(self, fieldname: bytes) -> str:
+        atoms = self.eargs.split()
+        flen = len(fieldname)
+        try:
+            for a in atoms:
+                if a.startswith(fieldname):
+                    return base64.decodebytes(a[flen:]).decode()
+        except:
+            pass
+        return "(could not decode {})".format(fieldname.decode())
+
     @property
     def color(self):
         return get_color(self.exepath)
+
+    @property
+    def args(self) -> str:
+        return self._parse_eargs_field(b"args=")
+
+    @property
+    def env(self) -> str:
+        return self._parse_eargs_field(b"env=")
 
     @staticmethod
     def parse(line: bytes) -> object:

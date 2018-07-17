@@ -49,13 +49,17 @@ nodes_by_pid = dict()  # holds nodes for active processes
 roots = set()  # holds root nodes, never shrinks
 
 
-def print_tree(roots: set) -> None:
+def print_tree(roots: set, args) -> None:
     duplicates = set()
     forrest = []
+    special_prefix = args.multicompiler_prefix  # type: Optional[str]
+    special_prefix = "\0invalid" if not special_prefix else special_prefix
+
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):
 
             marker = node.hash_subtree()
+            ncolor = node.color
             if node.parent:
                 marker = marker * 31 + node.parent.hash_roots()
             if marker in duplicates:
@@ -63,13 +67,18 @@ def print_tree(roots: set) -> None:
             else:
                 duplicates.add(marker)
             # skip leaf nodes representing utility processes
-            if node.is_leaf and node.color == Colors.DGRAY:
+            if node.is_leaf and ncolor == Colors.DGRAY:
                 continue
             # skip child nodes of configure calls
             if node.parent and node.parent.name.endswith("configure"):
                 continue
-            # line = "{}{}{}".format(pre, node.color, node.name)
-            line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+
+            # color multicompiler nodes green
+            if node.name.startswith(special_prefix):
+                ncolor = Colors.LGREEN
+
+            # line = "{}{}{}".format(pre, ncolor, node.name)
+            line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
             cc_ver = get_compiler_ver(node.name)
             if cc_ver:
@@ -80,7 +89,37 @@ def print_tree(roots: set) -> None:
     print("\n".join(forrest))
 
 
-_eargs_re = re.compile(r".*exe=(.*)\sargs=")
+def print_single_branch(evt: CCEvent):
+    """
+    printes tree from evt node to its (observed) root proc.
+    """
+    branch = set()
+    root = nodes_by_pid[evt.pid]
+    branch.add(root)
+    while not root.is_root:
+        root = root.parent
+        branch.add(root)
+
+    lines = []  # List[str]
+    indent = 0
+    for pre, _, node in RenderTree(root, style=STY):
+        if node not in branch:
+            continue
+        line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
+        # nodes representing compiler drivers have version information
+        cc_ver = get_compiler_ver(node.name)
+        if cc_ver:
+            line += Colors.DGRAY + " " + cc_ver
+        line = line + Colors.NO_COLOR
+        lines.append(line)
+        indent = len(pre)
+
+    # print args of event
+    line = " " * indent + Colors.DGRAY
+    line += evt.args + Colors.NO_COLOR
+    lines.append(line)
+
+    print("\n".join(lines))
 
 
 def handle_execve(exitevt: CCEvent) -> CCEvent:
@@ -90,7 +129,7 @@ def handle_execve(exitevt: CCEvent) -> CCEvent:
     # sometimes 'exepath' is blank. TODO: can this be avoided?
     if child == SYSDIG_NA:
         eargs = str(exitevt.eargs)
-        m = _eargs_re.match(eargs)
+        m = handle_execve.eargs_re.match(eargs)
         if m:
             child = m.group(1)
         elif "filename=" in eargs:
@@ -115,6 +154,9 @@ def handle_execve(exitevt: CCEvent) -> CCEvent:
     return cnode
 
 
+handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
+
+
 def handle_clone(exitevt: CCEvent):
     child_pid, parent_pid = exitevt.pid, exitevt.ppid
     assert child_pid > 0, "Unexpected child pid: {}".format(child_pid)
@@ -124,7 +166,8 @@ def handle_clone(exitevt: CCEvent):
                                     CCNode(exitevt.exepath, pid=parent_pid))
     cnode = nodes_by_pid.setdefault(child_pid, None)
     if not cnode:
-        nodes_by_pid[child_pid] = CCNode(exitevt.exepath, parent=pnode, pid=child_pid)
+        cnode = CCNode(exitevt.exepath, parent=pnode, pid=child_pid)
+        nodes_by_pid[child_pid] = cnode
 
     # sanity check that all children have distinct pid's
     # child_pids = set()
@@ -149,7 +192,6 @@ def _check_multicompiler_prefix(prefix: str) -> bool:
         'bin/llvm-nm',
         'bin/llvm-ar',
         'bin/llvm-ranlib',
-        'bin/ld.gold',
     ]
 
     if not os.path.isdir(prefix):
@@ -177,6 +219,11 @@ def _parse_args():
                         action='store', dest='multicompiler_prefix',
                         help='set multicompiler install prefix')
 
+    parser.add_argument('-n', '--no-multicompiler-warn',
+                        default=True,
+                        action='store_false', dest='multicompiler_warn',
+                        help="don't warn when using non-diversifying compiler")
+
     args = parser.parse_args()
     if not _check_multicompiler_prefix(args.multicompiler_prefix):
         args.multicompiler_prefix = None
@@ -185,6 +232,7 @@ def _parse_args():
 
 def main():
     args = _parse_args()
+    mc_prefix = args.multicompiler_prefix
     eol = b'##\n'
     try:
         while True:
@@ -197,12 +245,13 @@ def main():
 
             if evt.type == b'execve':
                 cnode = handle_execve(evt)
-                # TODO: take action based on args
-                # TODO: want mode that prints if compiler AND not under
-                # multicompiler prefix. Print tree from root node.
-                if args.multicompiler_prefix and \
-                   cnode.name.startswith(args.multicompiler_prefix):
-                    print("mc: {} ({})".format(cnode.name, cnode.pid))
+                if args.multicompiler_warn and mc_prefix:
+                    # NOTE: assumes that compilers are always execve'd
+                    cc_ver = get_compiler_ver(evt.exepath)
+                    if cc_ver and not evt.exepath.startswith():
+                        print("Warning: not using multicompiler here:")
+                        print_single_branch(evt)
+                        quit(1)
 
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
@@ -216,7 +265,7 @@ def main():
 
     except KeyboardInterrupt:
         print()
-        print_tree(roots)
+        print_tree(roots, args)
 
 
 if __name__ == "__main__":
