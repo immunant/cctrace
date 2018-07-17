@@ -50,6 +50,29 @@ roots = set()  # holds root nodes, never shrinks
 
 
 def print_tree(roots: set, args) -> None:
+    """
+    NOTE: this function is called right before cctrace.py exits and only once.
+    """
+
+    def keeper(n) -> bool:
+        """
+        Return True if this node is a keeper, otherwise False.
+        """
+        # configure processes are never keepers
+        if n.name.endswith("configure"):
+            return False
+
+        # prune children
+        n.children = filter(lambda c: keeper(c), n.children)
+
+        # boring leafs are never keepers
+        if n.is_leaf and n.color in [Colors.DGRAY, Colors.NO_COLOR]:
+            return False
+
+        return True
+
+    roots = [r for r in roots if keeper(r)]
+
     duplicates = set()
     forrest = []
     special_prefix = args.multicompiler_prefix  # type: Optional[str]
@@ -66,12 +89,6 @@ def print_tree(roots: set, args) -> None:
                 continue
             else:
                 duplicates.add(marker)
-            # skip leaf nodes representing utility processes
-            if node.is_leaf and ncolor == Colors.DGRAY:
-                continue
-            # skip child nodes of configure calls
-            if node.parent and node.parent.name.endswith("configure"):
-                continue
 
             # color multicompiler nodes green
             if node.name.startswith(special_prefix):
@@ -95,6 +112,9 @@ def print_single_branch(evt: CCEvent):
     """
     branch = set()
     root = nodes_by_pid[evt.pid]
+    # prints the node of interest as an only child
+    if root.parent:
+        root.parent.children = [root]
     branch.add(root)
     while not root.is_root:
         root = root.parent
@@ -248,7 +268,7 @@ def main():
                 if args.multicompiler_warn and mc_prefix:
                     # NOTE: assumes that compilers are always execve'd
                     cc_ver = get_compiler_ver(evt.exepath)
-                    if cc_ver and not evt.exepath.startswith():
+                    if cc_ver and not evt.exepath.startswith(mc_prefix):
                         print("Warning: not using multicompiler here:")
                         print_single_branch(evt)
                         quit(1)
