@@ -4,13 +4,14 @@
 import os
 import re
 import sys
+import errno
 import logging
 import argparse
 
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
-from ccevent import CCEvent, Colors, get_color, get_compiler_ver
+from ccevent import CCEvent, Colors, get_color, get_compiler_or_linker_ver
 
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -98,7 +99,7 @@ def print_tree(roots: set, args) -> None:
             # line = "{}{}{}".format(pre, ncolor, node.name)
             line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
-            cc_ver = get_compiler_ver(node.name)
+            cc_ver = get_compiler_or_linker_ver(node.name)
             if cc_ver:
                 line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
@@ -108,9 +109,16 @@ def print_tree(roots: set, args) -> None:
 
 
 def print_single_branch(evt: CCEvent):
+    print(_format_single_branch(evt))
+
+
+def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
     """
     printes tree from evt node to its (observed) root proc.
     """
+    dgray = Colors.DGRAY if sty == ContStyle else ""
+    nocol = Colors.NO_COLOR if sty == ContStyle else ""
+
     branch = set()
     root = nodes_by_pid[evt.pid]
     # prints the node of interest as an only child
@@ -123,21 +131,22 @@ def print_single_branch(evt: CCEvent):
 
     lines = []  # List[str]
     indent = 0
-    for pre, _, node in RenderTree(root, style=STY):
+    for pre, _, node in RenderTree(root, style=sty):
         if node not in branch:
             continue
-        line = "{}{}{} ({})".format(pre, node.color, node.name, node.pid)
-        # nodes representing compiler drivers have version information
-        cc_ver = get_compiler_ver(node.name)
+        ncolor = node.color if sty == ContStyle else ""
+        line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
+        # nodes representing compiler drivers or linkers have version info
+        cc_ver = get_compiler_or_linker_ver(node.name)
         if cc_ver:
-            line += Colors.DGRAY + " " + cc_ver
-        line = line + Colors.NO_COLOR
+            line += dgray + " " + cc_ver
+        line = line + nocol
         lines.append(line)
         indent = len(pre)
 
     # print args of event
-    line = " " * indent + Colors.DGRAY
-    line += evt.args + Colors.NO_COLOR
+    line = " " * indent + dgray
+    line += evt.args + nocol
     lines.append(line)
 
     env = evt.env
@@ -146,23 +155,23 @@ def print_single_branch(evt: CCEvent):
         line = " " * indent + "$PWD=" + pwd
         lines.append(line)
 
-    print("\n".join(lines))
+    return "\n".join(lines)
 
 
-def handle_execve(exitevt: CCEvent) -> CCEvent:
-    child_pid, parent_pid = exitevt.pid, exitevt.ppid
+def handle_execve(evt: CCEvent, args):
+    child_pid, parent_pid = evt.pid, evt.ppid
 
-    child = exitevt.exepath
+    child = evt.exepath
     # sometimes 'exepath' is blank. TODO: can this be avoided?
     if child == SYSDIG_NA:
-        eargs = str(exitevt.eargs)
+        eargs = str(evt.eargs)
         m = handle_execve.eargs_re.match(eargs)
         if m:
             child = m.group(1)
         elif "filename=" in eargs:
             child = eargs[9:]
         else:
-            print(exitevt.eargs)
+            print(evt.eargs)
             assert False
 
     # the lookup of the parent process can fail if the process was
@@ -178,7 +187,31 @@ def handle_execve(exitevt: CCEvent) -> CCEvent:
         cnode = CCNode(child, parent=pnode, pid=child_pid)
         nodes_by_pid[child_pid] = cnode
 
-    return cnode
+    # nothing more to do if this was the enter-syscall event
+    if evt.eargs.startswith(b'filename='):
+        return
+
+    # NOTE: Execve is the only Linux kernel entry point to run a
+    # program. The user space API has several variants like execl
+    # and fexecve. They all end up invoking the execve system call.
+
+    ver = get_compiler_or_linker_ver(evt.exepath)
+    under_mc_prefix = evt.exepath.startswith(args.multicompiler_prefix)
+    if ver and args.require_multicompiler:
+        if not under_mc_prefix:
+            emsg = "{}Error{}: not using multicompiler here:"
+            print(emsg.format(Colors.LRED, Colors.NO_COLOR))
+            print_single_branch(evt)
+            logging.error(emsg.format("", "") + "\n" +
+                          _format_single_branch(evt, sty=AsciiStyle))
+            quit(errno.EPERM)
+        else:  # ver is not null
+            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
+    elif ver:  # any tools is fine but log non-mc-tools as warnings
+        if under_mc_prefix:
+            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
+        else:
+            logging.warning("%d:%s %s", evt.pid, evt.exepath, evt.args)
 
 
 handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
@@ -246,14 +279,22 @@ def _parse_args():
                         action='store', dest='multicompiler_prefix',
                         help='set multicompiler install prefix')
 
-    parser.add_argument('-n', '--no-multicompiler-warn',
+    parser.add_argument('-a', '--allow-non-multicompiler',
                         default=True,
-                        action='store_false', dest='multicompiler_warn',
-                        help="don't warn when using non-diversifying compiler")
+                        action='store_false', dest='require_multicompiler',
+                        help="Allow non-multicompiler tools")
 
     args = parser.parse_args()
-    if not _check_multicompiler_prefix(args.multicompiler_prefix):
-        args.multicompiler_prefix = None
+    multicompiler_found = _check_multicompiler_prefix(
+                            args.multicompiler_prefix)
+    if args.require_multicompiler and not multicompiler_found:
+        emsg = "not a valid multicompiler prefix: "
+        emsg = emsg + args.multicompiler_prefix
+        logging.fatal(emsg)
+        print(emsg)
+        quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
+    elif not multicompiler_found:
+        args.multicompiler_prefix = "/no/such/path/I/hope"
     return args
 
 
@@ -267,9 +308,8 @@ def _setup_logging():
 
 
 def main():
-    args = _parse_args()
     _setup_logging()
-    mc_prefix = args.multicompiler_prefix
+    args = _parse_args()
     eol = b'##\n'
     try:
         while True:
@@ -281,23 +321,7 @@ def main():
             evt = CCEvent.parse(line)
 
             if evt.type == b'execve':
-                cnode = handle_execve(evt)
-
-                # TODO: this is ad hoc; include direction in format?
-                if evt.eargs.startswith(b'filename='):
-                    continue  # this is the enter event
-                
-                # NOTE: assumes that compilers are always execve'd
-                cc_ver = get_compiler_ver(evt.exepath)
-                if cc_ver:
-                    logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-
-                if args.multicompiler_warn and mc_prefix:
-                    if cc_ver and not evt.exepath.startswith(mc_prefix):
-                        print("Warning: not using multicompiler here:")
-                        print_single_branch(evt)
-                        quit(1)
-
+                handle_execve(evt, args)
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
                 if b"res=0 " not in evt.eargs:

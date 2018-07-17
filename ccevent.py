@@ -4,7 +4,7 @@ import os
 import re
 import base64
 import subprocess as sp
-# from typing import Optional, List
+# from typing import Optional, List  # not available in Python3.4
 
 
 class Colors:
@@ -56,22 +56,27 @@ COLOR_MAP = {
 _host_python_re = re.compile(r"/usr/(local/)?bin/python(\d\.\d|\d)?")
 _host_tclsh_re = re.compile(r"/usr/(local/)?bin/tclsh(\d\.\d|\d)?")
 _host_util_re = re.compile(r"/(usr/)?bin/.*")
-_build_tool_re = re.compile(r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)")
-_gcc_lib_re = re.compile(r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
+_build_tool_re = re.compile(
+    r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)")
+_gcc_lib_re = re.compile(
+    r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
 _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
 # binaries that are likely compiler drivers
-_compiler_driver_re = re.compile(r"[^\0]+/(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)")
+_compiler_driver_re = re.compile(
+    r"[^\0]+/(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)$")
+_linker_re = re.compile(r"[^\0]+/ld(\.gold|\.bfd|\.ldd)?$")
 
 
-def get_compiler_ver(exepath: str):
+def get_compiler_or_linker_ver(exepath: str):
     """
     TODO: move compiler identification logic into separate file?
     """
-    version = get_compiler_ver.cache.get(exepath, None)
+    version = get_compiler_or_linker_ver.cache.get(exepath, None)
     if version:
         return version
 
     m = _compiler_driver_re.match(exepath)
+    m = m if m else _linker_re.match(exepath)
     if not m:
         return None
 
@@ -83,13 +88,13 @@ def get_compiler_ver(exepath: str):
         # print("{} -> {}".format(exepath, ver))
         ver = ver.decode()  # bytes -> str
         ver = re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info if any
-        get_compiler_ver.cache[exepath] = ver
+        get_compiler_or_linker_ver.cache[exepath] = ver
         return ver
     except OSError:
         return None
 
 
-get_compiler_ver.cache = dict()  # init cache
+get_compiler_or_linker_ver.cache = dict()  # init cache
 
 
 def get_color(exepath: str) -> str:
@@ -97,7 +102,7 @@ def get_color(exepath: str) -> str:
     if color:
         return color
 
-    cc_ver = get_compiler_ver(exepath)
+    cc_ver = get_compiler_or_linker_ver(exepath)
     if cc_ver:
         color = Colors.LRED
     elif _host_python_re.match(exepath) or \
