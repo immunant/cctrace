@@ -154,10 +154,14 @@ class CCEvent(object):
         try:
             for a in atoms:
                 if a.startswith(fieldname):
-                    return base64.decodebytes(a[flen:]).decode()
+                    # get list of bytearrays
+                    payload = base64.decodebytes(a[flen:]).split(b'\0') 
+                    payload = map(lambda n: n.decode(), payload)
+                    return " ".join(payload)
         except:
             pass
-        return "(could not decode {})".format(fieldname.decode())
+        return None
+        # return "(could not decode {})".format(fieldname.decode())
 
     @property
     def color(self):

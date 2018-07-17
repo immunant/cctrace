@@ -4,6 +4,7 @@
 import os
 import re
 import sys
+import logging
 import argparse
 
 from anytree import Node, RenderTree
@@ -250,8 +251,18 @@ def _parse_args():
     return args
 
 
+def _setup_logging():
+    logging.basicConfig(
+        filename="cctrace.log",
+        format="%(asctime)-15s:%(levelname)s:%(message)s",
+        filemode='w',
+        level=logging.DEBUG)
+    logging.debug("argv: %s", " ".join(sys.argv))
+
+
 def main():
     args = _parse_args()
+    _setup_logging()
     mc_prefix = args.multicompiler_prefix
     eol = b'##\n'
     try:
@@ -265,9 +276,17 @@ def main():
 
             if evt.type == b'execve':
                 cnode = handle_execve(evt)
+
+                # TODO: this is ad hoc; include direction in format?
+                if evt.eargs.startswith(b'filename='):
+                    continue  # this is the enter event
+                
+                # NOTE: assumes that compilers are always execve'd
+                cc_ver = get_compiler_ver(evt.exepath)
+                if cc_ver:
+                    logging.info("cc=%s %s", evt.exepath, evt.args)
+
                 if args.multicompiler_warn and mc_prefix:
-                    # NOTE: assumes that compilers are always execve'd
-                    cc_ver = get_compiler_ver(evt.exepath)
                     if cc_ver and not evt.exepath.startswith(mc_prefix):
                         print("Warning: not using multicompiler here:")
                         print_single_branch(evt)
