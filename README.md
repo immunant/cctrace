@@ -14,6 +14,7 @@ Assuming pip3 is available, the `anytree` Python package can be installed via:
 ## TODOs:
 
 - [x] Handle multi-line commands 
-- [ ] detect selfrando
 - [x] log compiler invocations
-- [ ] log linker invocations
+- [x] log linker invocations
+- [ ] detect selfrando
+- [ ] decouple core tool from multicompiler
