@@ -4,7 +4,7 @@ import os
 import re
 import base64
 import subprocess as sp
-from typing import Optional, List
+# from typing import Optional, List
 
 
 class Colors:
@@ -63,7 +63,7 @@ _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
 _compiler_driver_re = re.compile(r"[^\0]+/(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)")
 
 
-def get_compiler_ver(exepath: str) -> Optional[str]:
+def get_compiler_ver(exepath: str):
     """
     TODO: move compiler identification logic into separate file?
     """
