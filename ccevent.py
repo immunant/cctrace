@@ -157,7 +157,7 @@ class CCEvent(object):
                     # get list of bytearrays
                     payload = base64.decodebytes(a[flen:]).split(b'\0') 
                     payload = map(lambda n: n.decode(), payload)
-                    return " ".join(payload)
+                    return payload
         except:
             pass
         return None
@@ -169,11 +169,17 @@ class CCEvent(object):
 
     @property
     def args(self) -> str:
-        return self._parse_eargs_field(b"args=")
+        args = self._parse_eargs_field(b"args=")
+        return " ".join(args)
 
     @property
-    def env(self) -> str:
-        return self._parse_eargs_field(b"env=")
+    def env(self) -> dict:
+        pairs = self._parse_eargs_field(b"env=")
+        res = dict()
+        for p in pairs:
+            i = p.find("=")
+            res[p[:i]] = p[i+1:]
+        return res
 
     @staticmethod
     def parse(line: bytes) -> object:

@@ -140,6 +140,12 @@ def print_single_branch(evt: CCEvent):
     line += evt.args + Colors.NO_COLOR
     lines.append(line)
 
+    env = evt.env
+    pwd = env.get("PWD", None)
+    if pwd:
+        line = " " * indent + "$PWD=" + pwd
+        lines.append(line)
+
     print("\n".join(lines))
 
 
@@ -284,7 +290,7 @@ def main():
                 # NOTE: assumes that compilers are always execve'd
                 cc_ver = get_compiler_ver(evt.exepath)
                 if cc_ver:
-                    logging.info("cc=%s %s", evt.exepath, evt.args)
+                    logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
 
                 if args.multicompiler_warn and mc_prefix:
                     if cc_ver and not evt.exepath.startswith(mc_prefix):
