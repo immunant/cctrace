@@ -1,19 +1,18 @@
 # cctrace
-Trace invocations of compiler, linker, and other build tools.
-
-Note: `cctrace` relies on `sysdig` which is only fully supported on Linux.
+Trace invocations of compiler, linker, and other build tools.  `cctrace` relies on `sysdig` which is only supported on Linux.
 
 ## Prerequisites
 
-```sh
-curl -s https://s3.amazonaws.com/download.draios.com/stable/install-sysdig | sudo bash
-pip3 install -U anytree
-```
+On Debian hosts, run `prerequisites_deb.sh` as root. Alternatively, `sysdig` be installed by running: 
+
+    $ curl -s https://s3.amazonaws.com/download.draios.com/stable/install-sysdig | sudo bash
+
+Assuming pip3 is available, the `anytree` Python package can be installed via:
+
+    $ pip3 install -U --user anytree
 
 ## TODOs:
 
 - [x] Handle multi-line commands 
-- [ ] Improve classification of tools
-    - [ ] detect non-system compilers
-    - [ ] detect selfrando
-- [ ] Print process tree    
+- [ ] detect selfrando
+- [ ] log compiler invocations
