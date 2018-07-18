@@ -23,12 +23,10 @@ sudo ln -fs /usr/bin/pip3.6 /usr/bin/pip3
 pip3 install --quiet --user --no-cache anytree
 
 # conditionally install sysdig
-SHOULD_INSTALL_SYSDIG=0
+SHOULD_INSTALL_SYSDIG=1
 if type "sysdig" > /dev/null 2>&1; then
   # older versions of sysdig does not have a --version flag, so use --help
-  sysdig --help | grep -q "sysdig version 0.22" || SHOULD_INSTALL_SYSDIG=1
-else
-    SHOULD_INSTALL_SYSDIG=1
+  sysdig --help | grep -q "sysdig version 0.22" || SHOULD_INSTALL_SYSDIG=0
 fi
 
 if [[ "$SHOULD_INSTALL_SYSDIG" -eq 1 ]]
