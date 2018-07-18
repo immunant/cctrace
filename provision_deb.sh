@@ -19,8 +19,18 @@ apt-get -qq install build-essential curl htop python3-pip ipython3
 # anytree python library
 pip3 install --quiet --user --no-cache anytree
 
+
 # conditionally install sysdig
-if ! type "sysdig" > /dev/null 2>&1; then
+SHOULD_INSTALL_SYSDIG=0
+if type "sysdig" > /dev/null 2>&1; then
+  # older versions of sysdig does not have a --version flag, so use --help
+  sysdig --help | grep -q "sysdig version 0.22" || SHOULD_INSTALL_SYSDIG=1
+else
+    SHOULD_INSTALL_SYSDIG=1
+fi
+
+if [[ "$SHOULD_INSTALL_SYSDIG" -eq 1 ]]
+then
   # don't warn when adding developer GPG key
   export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
   curl -s https://s3.amazonaws.com/download.draios.com/stable/install-sysdig | bash
