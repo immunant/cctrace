@@ -19,7 +19,7 @@ fi
 if type "python3" > /dev/null 2>&1; then
     # TODO: check that python3 is v3 and check for packages
     true
-else 
+else
     echo >&2 "Error, python3 not in path"; exit 1
 fi
 
@@ -32,6 +32,5 @@ fi
 FORMAT="%thread.tid#%evt.type#%proc.exepath#%proc.pname#%proc.pid#%proc.ppid"
 FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="(evt.type=execve or evt.type=clone or evt.type=procexit) and evt.failed=false and user.name=$(logname)"
-SYSDIG=sysdig
-${SYSDIG} --print-base64 -p"$FORMAT" "${FILTER}" \
-  | python3 -u cctrace.py "$@"
+sysdig --print-base64 -p"$FORMAT" "${FILTER}" \
+  | USER=$(logname) python3 -u cctrace.py "$@"
