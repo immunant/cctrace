@@ -1,12 +1,12 @@
 #!/bin/bash
 
 
-
-
 # Are we on a supported distro?
-#dpkg-vendor --derives-from Redhat || {
-#    echo >&2 "Run this script on a Centos/RHEL  host."; exit 1; 
-#}
+source /etc/os-release
+if [ "$NAME" != "CentOS Linux" ]; then 
+    echo >&2 "Run this script on a CentOS host." 
+    exit 1 
+fi
 
 if [[ "$EUID" -ne 0 ]]
   then echo "Please run as root"
