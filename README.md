@@ -11,6 +11,18 @@ Assuming pip3 is available, the `anytree` Python package can be installed via:
 
     $ pip3 install -U --user anytree
 
+## Usage
+
+`cctrace` is not a wrapper script and is intended to be run side by side (e.g. in a separate terminal) with a build command like this:
+
+    $ sudo ./cctrace
+
+If the multicompiler is not installed to `$HOME/selfrando-testing/local` use the `-m` flag to specify the multicompiler install prefix or use `-a` to allow non-multicompiler tools.
+
+`cctrace` logs all "interesting" build commands to `cctrace.log` by default. To see all options, run:
+
+    $ sudo ./cctrace --help
+
 ## TODOs:
 
 - [x] Handle multi-line commands 
