@@ -271,7 +271,9 @@ def _parse_args():
     """
     desc = 'listen for compiler invocations.'
     parser = argparse.ArgumentParser(description=desc)
-    mp_default = os.getenv('HOME')
+    # we use expanduser rather than $HOME since we might run under sudo
+    env_user = os.getenv('USER')
+    mp_default = os.path.expanduser("~" + env_user)
     mp_default = os.path.join(mp_default,
                               "selfrando-testing/local")
     parser.add_argument('-m', '--multicompiler-prefix',
