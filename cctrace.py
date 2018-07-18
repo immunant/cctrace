@@ -280,7 +280,10 @@ def _parse_args():
                         default=mp_default,
                         action='store', dest='multicompiler_prefix',
                         help='set multicompiler install prefix')
-
+    parser.add_argument('-l', '--logfile',
+                        default="cctrace.log",
+                        action='store', dest='logfile',
+                        help='set name of logfile')
     parser.add_argument('-a', '--allow-non-multicompiler',
                         default=True,
                         action='store_false', dest='require_multicompiler',
@@ -292,7 +295,6 @@ def _parse_args():
     if args.require_multicompiler and not multicompiler_found:
         emsg = "not a valid multicompiler prefix: "
         emsg = emsg + args.multicompiler_prefix
-        logging.fatal(emsg)
         print(emsg)
         quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
     elif not multicompiler_found:
@@ -300,9 +302,9 @@ def _parse_args():
     return args
 
 
-def _setup_logging():
+def _setup_logging(args):
     logging.basicConfig(
-        filename="cctrace.log",
+        filename=args.logfile,
         format="%(asctime)-15s:%(levelname)s:%(message)s",
         filemode='w',
         level=logging.DEBUG)
@@ -310,8 +312,8 @@ def _setup_logging():
 
 
 def main():
-    _setup_logging()
     args = _parse_args()
+    _setup_logging(args)
     eol = b'##\n'
     try:
         while True:
