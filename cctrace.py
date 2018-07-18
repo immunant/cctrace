@@ -287,7 +287,7 @@ def _parse_args():
     parser.add_argument('-a', '--allow-non-multicompiler',
                         default=True,
                         action='store_false', dest='require_multicompiler',
-                        help="Allow non-multicompiler tools")
+                        help="allow non-multicompiler tools")
 
     args = parser.parse_args()
     multicompiler_found = _check_multicompiler_prefix(
