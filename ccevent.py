@@ -60,6 +60,8 @@ _build_tool_re = re.compile(
     r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)")
 _gcc_lib_re = re.compile(
     r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
+_gcc_bin_re = re.compile(
+    r"/usr/bin/(x86_64|i686|arm|arm64|aarch64)-linux-gnu-")    
 _llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
 # binaries that are likely compiler drivers
 _compiler_driver_re = re.compile(
@@ -110,7 +112,8 @@ def get_color(exepath: str) -> str:
             _build_tool_re.match(exepath):
         color = Colors.LBLUE
     elif _gcc_lib_re.match(exepath) or \
-            _llvm_lib_re.match(exepath):
+            _llvm_lib_re.match(exepath) or \
+            _gcc_bin_re.match(exepath):
         color = Colors.LYELLOW
     else:
         color = COLOR_MAP.get(exepath, Colors.NO_COLOR)
