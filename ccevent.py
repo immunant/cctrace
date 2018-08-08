@@ -19,6 +19,7 @@ class Colors:
     NO_COLOR = '\033[0m'
 
 
+
 # Known binaries
 COLOR_MAP = {
     # utilities -> GRAY (all matched by regex now)

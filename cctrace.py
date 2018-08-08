@@ -12,6 +12,7 @@ from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
 from ccevent import CCEvent, Colors, get_color, get_compiler_or_linker_ver
+from config import config as c, Config
 
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -158,7 +159,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
     return "\n".join(lines)
 
 
-def handle_execve(evt: CCEvent, args):
+def handle_execve(evt: CCEvent, c: Config):
     child_pid, parent_pid = evt.pid, evt.ppid
 
     child = evt.exepath
@@ -196,7 +197,7 @@ def handle_execve(evt: CCEvent, args):
     # and fexecve. They all end up invoking the execve system call.
 
     ver = get_compiler_or_linker_ver(evt.exepath)
-    under_mc_prefix = evt.exepath.startswith(args.multicompiler_prefix)
+    under_mc_prefix = evt.exepath.startswith(c.cc_prefix)
     if ver and args.require_multicompiler:
         if not under_mc_prefix:
             emsg = "{}Error{}: not using multicompiler here:"
@@ -276,10 +277,14 @@ def _parse_args():
     mp_default = os.path.expanduser("~" + env_user)
     mp_default = os.path.join(mp_default,
                               "selfrando-testing/local")
-    parser.add_argument('-m', '--multicompiler-prefix',
-                        default=mp_default,
-                        action='store', dest='multicompiler_prefix',
-                        help='set multicompiler install prefix')
+    parser.add_argument('config_file',
+                        type=argparse.FileType('r'),
+                        help='trace configuration file')
+    # parser.add_argument('-m', '--multicompiler-prefix',
+    #                     default=mp_default,
+    #                     action='store', dest='multicompiler_prefix',
+    #                     help='set multicompiler install prefix')
+
     parser.add_argument('-l', '--logfile',
                         default="cctrace.log",
                         action='store', dest='logfile',
@@ -313,6 +318,7 @@ def _setup_logging(args):
 
 def main():
     args = _parse_args()
+    c.update_args(args)
     _setup_logging(args)
     eol = b'##\n'
     try:
@@ -325,14 +331,14 @@ def main():
             evt = CCEvent.parse(line)
 
             if evt.type == b'execve':
-                handle_execve(evt, args)
+                handle_execve(evt, c)
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
                 if b"res=0 " not in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == b'procexit':
-                handle_procexit(evt, args)
+                handle_procexit(evt, c)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 
