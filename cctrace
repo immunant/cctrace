@@ -2,6 +2,12 @@
 
 set -e 
 
+if [[ "$@" == "-h" || "$@" == "--help" ]]; then
+
+    python3 cctrace.py --help
+    exit 0
+fi
+
 # must run as root.
 if [[ "$EUID" -ne 0 ]]; then 
     echo >&2 "Please run as root"; exit 1
