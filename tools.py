@@ -20,33 +20,28 @@ from enum import Enum
 class ToolType(Enum):
     CCompiler = "cc",
     CXXCompiler = "c++",
+    GCCHelper = "<gcc_helper>",
+    LLVMHelper = "<llvm_helper>",
     Linker = "ld",
     Archiver = "ar",
     Indexer = "ranlib",
     Lister = "nm",
     Builder = "<builder>",
-    Interpreter = "<interpreter>"
-    Unknown = "<unknown>"
+    Interpreter = "<interpreter>",
+    Unknown = "<unknown>",
 
     def __str__(self):
-        return self.value
+        return self.value[0]
 
     def __repr__(self):
-        return self.value
-
-matcher = {
-    ToolType.CCompiler: r"(clang|gcc|suncc|icc|cc)$",
-    ToolType.CXXCompiler: r"(clang\+\+|g\+\+|c\+\+)$",
-    ToolType.Interpreter: r"(python|ruby|tclsh|perl|lua)[\d\.]*",
+        return self.value[0]
 
 
-}
-# TODO: compile all the regexes
+
 
 
 def get_tool_type(exepath: str) -> ToolType:
     """
-
     >>> get_tool_type("/no/such/tool")
     <unknown>
     >>> get_tool_type("/usr/bin/cc")
@@ -61,14 +56,24 @@ def get_tool_type(exepath: str) -> ToolType:
         return type_
 
     name = os.path.basename(exepath)
-    if _interpreter.match(name):
-        return ToolType.Interpreter
 
+    for (type_, matcher) in get_tool_type.matchers.items():
+        if matcher.match(name):
+            get_tool_type.cache[exepath] = type_
+            return type_
 
     return ToolType.Unknown
 
 
 get_tool_type.cache = dict()  # init cache
+get_tool_type.matchers = {k: re.compile(v) for (k, v) in {
+    ToolType.CCompiler: r"(clang|gcc|suncc|icc|cc)$",
+    ToolType.CXXCompiler: r"(clang\+\+|g\+\+|c\+\+)$",
+    ToolType.GCCHelper: ""
+    ToolType.Linker: r"ld(\.gold|\.bfd|\.ldd)?$",
+    ToolType.Interpreter: r"(python|ruby|tclsh|perl|lua)[\d\.]*$",
+
+}.items()}
 
 
 if __name__ == "__main__":
