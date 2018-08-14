@@ -11,9 +11,8 @@ import argparse
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
-from ccevent import CCEvent, Colors, get_color, get_compiler_or_linker_ver
-from config import config as c, Config
-
+from ccevent import CCEvent, Colors, get_color
+from policy import policy as p, Policy
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
 STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
@@ -78,8 +77,6 @@ def print_tree(roots: set, args) -> None:
 
     duplicates = set()
     forrest = []
-    special_prefix = args.multicompiler_prefix  # type: Optional[str]
-    special_prefix = "\0invalid" if not special_prefix else special_prefix
 
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):
@@ -93,16 +90,17 @@ def print_tree(roots: set, args) -> None:
             else:
                 duplicates.add(marker)
 
-            # color multicompiler nodes green
-            if node.name.startswith(special_prefix):
+            # color policy-checked nodes green
+            if p.passed_check(node.name):
                 ncolor = Colors.LGREEN
 
             # line = "{}{}{}".format(pre, ncolor, node.name)
             line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
-            cc_ver = get_compiler_or_linker_ver(node.name)
-            if cc_ver:
-                line += Colors.DGRAY + " " + cc_ver
+            # TODO: restore version functionality
+            # cc_ver = get_compiler_or_linker_ver(node.name)
+            # if cc_ver:
+            #     line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
             forrest.append(line)
 
@@ -159,7 +157,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
     return "\n".join(lines)
 
 
-def handle_execve(evt: CCEvent, c: Config):
+def handle_execve(evt: CCEvent, c: Policy):
     child_pid, parent_pid = evt.pid, evt.ppid
 
     child = evt.exepath
@@ -196,23 +194,9 @@ def handle_execve(evt: CCEvent, c: Config):
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
 
-    ver = get_compiler_or_linker_ver(evt.exepath)
-    under_mc_prefix = evt.exepath.startswith(c.cc_prefix)
-    if ver and args.require_multicompiler:
-        if not under_mc_prefix:
-            emsg = "{}Error{}: not using multicompiler here:"
-            print(emsg.format(Colors.LRED, Colors.NO_COLOR))
-            print_single_branch(evt)
-            logging.error(emsg.format("", "") + "\n" +
-                          _format_single_branch(evt, sty=AsciiStyle))
-            quit(errno.EPERM)
-        else:  # ver is not null
-            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-    elif ver:  # any tools is fine but log non-mc-tools as warnings
-        if under_mc_prefix:
-            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-        else:
-            logging.warning("%d:%s %s", evt.pid, evt.exepath, evt.args)
+    # ver = get_compiler_or_linker_ver(evt.exepath)
+    # under_mc_prefix = evt.exepath.startswith(c.cc_prefix)
+    p.check(evt.exepath)
 
 
 handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
@@ -246,24 +230,24 @@ def handle_procexit(evt: CCEvent, args):
     nodes_by_pid.pop(pid, None)  # removes node if present
 
 
-def _check_multicompiler_prefix(prefix: str) -> bool:
-    slugs = [
-        'bin/clang',
-        'bin/clang++',
-        'bin/llvm-nm',
-        'bin/llvm-ar',
-        'bin/llvm-ranlib',
-    ]
-
-    if not os.path.isdir(prefix):
-        return False
-
-    for s in slugs:
-        if not os.path.exists(os.path.join(prefix, s)):
-            return False
-
-    # TODO: invoke clang --version and look for multicompiler in output
-    return True
+# def _check_multicompiler_prefix(prefix: str) -> bool:
+#     slugs = [
+#         'bin/clang',
+#         'bin/clang++',
+#         'bin/llvm-nm',
+#         'bin/llvm-ar',
+#         'bin/llvm-ranlib',
+#     ]
+#
+#     if not os.path.isdir(prefix):
+#         return False
+#
+#     for s in slugs:
+#         if not os.path.exists(os.path.join(prefix, s)):
+#             return False
+#
+#     # TODO: invoke clang --version and look for multicompiler in output
+#     return True
 
 
 def _parse_args():
@@ -272,38 +256,29 @@ def _parse_args():
     """
     desc = 'listen for compiler invocations.'
     parser = argparse.ArgumentParser(description=desc)
-    # we use expanduser rather than $HOME since we might run under sudo
-    env_user = os.getenv('USER')
-    mp_default = os.path.expanduser("~" + env_user)
-    mp_default = os.path.join(mp_default,
-                              "selfrando-testing/local")
-    parser.add_argument('config_file',
+    parser.add_argument('-c', '--config',
+                        default='policy/default.cctrace.json',
                         type=argparse.FileType('r'),
                         help='trace configuration file')
-    # parser.add_argument('-m', '--multicompiler-prefix',
-    #                     default=mp_default,
-    #                     action='store', dest='multicompiler_prefix',
-    #                     help='set multicompiler install prefix')
-
     parser.add_argument('-l', '--logfile',
                         default="cctrace.log",
                         action='store', dest='logfile',
                         help='set name of logfile')
-    parser.add_argument('-a', '--allow-non-multicompiler',
-                        default=True,
-                        action='store_false', dest='require_multicompiler',
-                        help="allow non-multicompiler tools")
+    # parser.add_argument('-a', '--allow-non-multicompiler',
+    #                     default=True,
+    #                     action='store_false', dest='require_multicompiler',
+    #                     help="allow non-multicompiler tools")
 
     args = parser.parse_args()
-    multicompiler_found = _check_multicompiler_prefix(
-                            args.multicompiler_prefix)
-    if args.require_multicompiler and not multicompiler_found:
-        emsg = "not a valid multicompiler prefix: "
-        emsg = emsg + args.multicompiler_prefix
-        print(emsg)
-        quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
-    elif not multicompiler_found:
-        args.multicompiler_prefix = "/no/such/path/I/hope"
+    # multicompiler_found = _check_multicompiler_prefix(
+    #                         args.multicompiler_prefix)
+    # if args.require_multicompiler and not multicompiler_found:
+    #     emsg = "not a valid multicompiler prefix: "
+    #     emsg = emsg + args.multicompiler_prefix
+    #     print(emsg)
+    #     quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
+    # elif not multicompiler_found:
+    #     args.multicompiler_prefix = "/no/such/path/I/hope"
     return args
 
 
@@ -318,7 +293,7 @@ def _setup_logging(args):
 
 def main():
     args = _parse_args()
-    c.update_args(args)
+    p.update(args)
     _setup_logging(args)
     eol = b'##\n'
     try:
@@ -331,14 +306,14 @@ def main():
             evt = CCEvent.parse(line)
 
             if evt.type == b'execve':
-                handle_execve(evt, c)
+                handle_execve(evt, p)
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
                 if b"res=0 " not in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == b'procexit':
-                handle_procexit(evt, c)
+                handle_procexit(evt, p)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 

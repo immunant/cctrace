@@ -1,0 +1,11 @@
+{
+    "name": "multicompiler",
+    "keep_going": false,
+    "c_compiler": {
+        "path": "~/selfrando-testing/local/bin/clang",
+        "flags" : [
+            "-g"
+        ]
+     }
+}
+

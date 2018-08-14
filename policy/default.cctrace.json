@@ -1,0 +1,14 @@
+{
+    "name": "multicompiler",
+    "keep_going": false,
+    "c_compiler": {
+        "path": "/usr/bin/cc"
+    },
+    "cxx_compiler": {
+        "path": "/usr/bin/cxx"
+    },
+    "linker": {
+        "path": "/usr/bin/ld"
+    }
+}
+
