@@ -18,6 +18,8 @@ class Policy(object):
         self.keep_going = cfg.pop("keep_going", self.keep_going)
         self.config = cfg
 
+        # TODO: check that all referenced tools exist
+
     def check(self, exepath: str):
         pass
 

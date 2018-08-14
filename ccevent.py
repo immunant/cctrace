@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import os
-import re
 import base64
-import subprocess as sp
+
 # from typing import Optional, List  # not available in Python3.4
 
 from tools import ToolType
-
 
 class Colors:
     # Terminal escape codes
@@ -54,33 +51,7 @@ class Colors:
 #     '/usr/bin/perl': Colors.LBLUE,
 #     '/usr/bin/ruby': Colors.LBLUE,
 # }
-# def get_compiler_or_linker_ver(exepath: str):
-#     """
-#     TODO: move compiler identification logic into separate file?
-#     """
-#     version = get_compiler_or_linker_ver.cache.get(exepath, None)
-#     if version:
-#         return version
-#
-#     tt = ToolType.from_path(exepath)
-#     if tt.is_compiler_or_linker():
-#         return None
-#
-#     exepath = os.path.realpath(exepath)  # canonicalize path
-#     try:
-#         p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
-#         stdout, stderr = p.communicate()
-#         ver = stdout.split(b'\n', 1)[0]  # get first line
-#         # print("{} -> {}".format(exepath, ver))
-#         ver = ver.decode()  # bytes -> str
-#         ver = re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info if any
-#         get_compiler_or_linker_ver.cache[exepath] = ver
-#         return ver
-#     except OSError:
-#         return None
-#
-#
-# get_compiler_or_linker_ver.cache = dict()  # init cache
+
 
 
 def get_color(exepath: str) -> str:

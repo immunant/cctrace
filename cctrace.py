@@ -4,7 +4,6 @@
 import os
 import re
 import sys
-import errno
 import logging
 import argparse
 
@@ -13,6 +12,7 @@ from anytree.render import AsciiStyle, ContStyle
 
 from ccevent import CCEvent, Colors, get_color
 from policy import policy as p, Policy
+from tools import get_tool_ver
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
 STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
@@ -48,7 +48,7 @@ class CCNode(Node):
 
 
 nodes_by_pid = dict()  # holds nodes for active processes
-roots = set()  # holds root nodes, never shrinks
+roots = set()  # holds root nodes; never shrinks
 
 
 def print_tree(roots: set, args) -> None:
@@ -98,9 +98,9 @@ def print_tree(roots: set, args) -> None:
             line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
             # TODO: restore version functionality
-            # cc_ver = get_compiler_or_linker_ver(node.name)
-            # if cc_ver:
-            #     line += Colors.DGRAY + " " + cc_ver
+            cc_ver = get_tool_ver(node.name)
+            if cc_ver:
+                line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
             forrest.append(line)
 
@@ -136,7 +136,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
         ncolor = node.color if sty == ContStyle else ""
         line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
         # nodes representing compiler drivers or linkers have version info
-        cc_ver = get_compiler_or_linker_ver(node.name)
+        cc_ver = get_tool_ver(node.name)
         if cc_ver:
             line += dgray + " " + cc_ver
         line = line + nocol
@@ -157,7 +157,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
     return "\n".join(lines)
 
 
-def handle_execve(evt: CCEvent, c: Policy):
+def handle_execve(evt: CCEvent, p: Policy):
     child_pid, parent_pid = evt.pid, evt.ppid
 
     child = evt.exepath
@@ -193,9 +193,6 @@ def handle_execve(evt: CCEvent, c: Policy):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
-
-    # ver = get_compiler_or_linker_ver(evt.exepath)
-    # under_mc_prefix = evt.exepath.startswith(c.cc_prefix)
     p.check(evt.exepath)
 
 
@@ -264,21 +261,8 @@ def _parse_args():
                         default="cctrace.log",
                         action='store', dest='logfile',
                         help='set name of logfile')
-    # parser.add_argument('-a', '--allow-non-multicompiler',
-    #                     default=True,
-    #                     action='store_false', dest='require_multicompiler',
-    #                     help="allow non-multicompiler tools")
-
     args = parser.parse_args()
-    # multicompiler_found = _check_multicompiler_prefix(
-    #                         args.multicompiler_prefix)
-    # if args.require_multicompiler and not multicompiler_found:
-    #     emsg = "not a valid multicompiler prefix: "
-    #     emsg = emsg + args.multicompiler_prefix
-    #     print(emsg)
-    #     quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
-    # elif not multicompiler_found:
-    #     args.multicompiler_prefix = "/no/such/path/I/hope"
+
     return args
 
 

@@ -1,4 +1,6 @@
+import os
 import re
+import subprocess as sp
 from enum import Enum
 
 
@@ -72,7 +74,6 @@ class ToolType(Enum):
                self == ToolType.llvm_lib
 
 
-
 ToolType._cache = dict()  # init cache
 ToolType._matchers = {k: re.compile(v) for (k, v) in {
     ToolType.c_compiler: r"[^\0]+/(clang|gcc|suncc|icc|cc)$",
@@ -85,6 +86,38 @@ ToolType._matchers = {k: re.compile(v) for (k, v) in {
     ToolType.builder: r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)",
     ToolType.util: r"/(usr/)?bin/.*",
 }.items()}
+
+
+def get_tool_ver(exepath: str):
+    """
+
+    """
+    version = get_tool_ver.cache.get(exepath, None)
+    if version:
+        return version
+
+    tt = ToolType.from_path(exepath)
+    if tt == ToolType.unknown or tt == ToolType.util:
+         return None
+
+    # NOTE: skipping this step leads to prettier version output for GCC
+    # at the expense of adduitional cache entries.
+    # exepath = os.path.realpath(exepath)  # canonicalize path
+    try:
+        p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
+        stdout, stderr = p.communicate()
+        ver = stdout.split(b'\n', 1)[0]  # get first line
+        # print("{} -> {}".format(exepath, ver))
+        ver = ver.decode()  # bytes -> str
+        ver = re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info if any
+        get_tool_ver.cache[exepath] = ver
+        return ver
+    except OSError:
+        get_tool_ver.cache[exepath] = ""
+        return ""
+
+
+get_tool_ver.cache = dict()  # init cache
 
 
 if __name__ == "__main__":
