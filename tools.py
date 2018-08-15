@@ -98,7 +98,7 @@ def get_tool_ver(exepath: str):
 
     tt = ToolType.from_path(exepath)
     if tt == ToolType.unknown or tt == ToolType.util:
-         return None
+        return None
 
     # NOTE: skipping this step leads to prettier version output for GCC
     # at the expense of adduitional cache entries.

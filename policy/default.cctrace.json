@@ -1,11 +1,11 @@
 {
-    "name": "multicompiler",
+    "name": "host default compiler",
     "keep_going": false,
     "c_compiler": {
         "path": "/usr/bin/cc"
     },
     "cxx_compiler": {
-        "path": "/usr/bin/cxx"
+        "path": "/usr/bin/c++"
     },
     "linker": {
         "path": "/usr/bin/ld"

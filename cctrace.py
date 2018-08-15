@@ -4,6 +4,7 @@
 import os
 import re
 import sys
+import errno
 import logging
 import argparse
 
@@ -91,13 +92,12 @@ def print_tree(roots: set, args) -> None:
                 duplicates.add(marker)
 
             # color policy-checked nodes green
-            if p.passed_check(node.name):
+            if p.is_checked(node.name): # and p.check(node.name):
                 ncolor = Colors.LGREEN
 
             # line = "{}{}{}".format(pre, ncolor, node.name)
             line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
-            # TODO: restore version functionality
             cc_ver = get_tool_ver(node.name)
             if cc_ver:
                 line += Colors.DGRAY + " " + cc_ver
@@ -193,7 +193,22 @@ def handle_execve(evt: CCEvent, p: Policy):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
-    p.check(evt.exepath)
+    status, expected, tt = p.check(evt.exepath)
+    if not status:
+        emsg = "{}Error{}: not using expected {}.\n"
+        emsg += "Expected: {}{}{}\nObserved:"
+        cfmt = [Colors.LRED, Colors.NO_COLOR, tt.name, Colors.LYELLOW,
+                expected, Colors.NO_COLOR]
+        lfmt = ["", "", tt.name, "", expected, ""]
+        print(emsg.format(*cfmt))
+        print_single_branch(evt)
+        logging.error(emsg.format(*lfmt) + "\n" +
+                      _format_single_branch(evt, sty=AsciiStyle))
+        if not p.keep_going:
+            quit(errno.EPERM)
+    elif p.is_checked(evt.exepath):
+        logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
+
 
 
 handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
@@ -227,26 +242,6 @@ def handle_procexit(evt: CCEvent, args):
     nodes_by_pid.pop(pid, None)  # removes node if present
 
 
-# def _check_multicompiler_prefix(prefix: str) -> bool:
-#     slugs = [
-#         'bin/clang',
-#         'bin/clang++',
-#         'bin/llvm-nm',
-#         'bin/llvm-ar',
-#         'bin/llvm-ranlib',
-#     ]
-#
-#     if not os.path.isdir(prefix):
-#         return False
-#
-#     for s in slugs:
-#         if not os.path.exists(os.path.join(prefix, s)):
-#             return False
-#
-#     # TODO: invoke clang --version and look for multicompiler in output
-#     return True
-
-
 def _parse_args():
     """
     define and parse command line arguments here.
@@ -278,6 +273,7 @@ def _setup_logging(args):
 def main():
     args = _parse_args()
     p.update(args)
+    assert p.is_checked("/usr/bin/gcc")
     _setup_logging(args)
     eol = b'##\n'
     try:
