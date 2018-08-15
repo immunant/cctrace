@@ -6,6 +6,7 @@ import base64
 
 from tools import ToolType
 
+
 class Colors:
     # Terminal escape codes
     DGRAY = '\033[90m'
@@ -16,41 +17,6 @@ class Colors:
     LMAGENTA = '\033[95m'
     LCYAN = '\033[96m'
     NO_COLOR = '\033[0m'
-
-
-
-# # Known binaries
-# COLOR_MAP = {
-#     # utilities -> GRAY (all matched by regex now)
-#     # host translators -> LYELLOW
-#     '/usr/bin/yasm': Colors.LYELLOW,
-#     '/usr/bin/ar': Colors.LYELLOW,
-#     '/usr/bin/as': Colors.LYELLOW,
-#     '/usr/bin/x86_64-linux-gnu-as': Colors.LYELLOW,
-#     '/usr/bin/ranlib': Colors.LYELLOW,
-#     '/usr/bin/ld': Colors.LYELLOW,
-#     '/usr/bin/ld.bfd': Colors.LYELLOW,
-#     '/usr/bin/ld.gold': Colors.LYELLOW,
-#     '/usr/bin/gcc': Colors.LYELLOW,
-#     '/usr/bin/cc': Colors.LYELLOW,
-#     '/usr/bin/g++': Colors.LYELLOW,
-#     '/usr/bin/clang': Colors.LYELLOW,
-#     '/usr/bin/clang++': Colors.LYELLOW,
-#     # build tools -> BLUE
-#     '/usr/bin/make': Colors.LBLUE,
-#     '/usr/bin/cmake': Colors.LBLUE,
-#     '/usr/bin/ccmake': Colors.LBLUE,
-#     '/usr/bin/ctest': Colors.LBLUE,
-#     '/usr/bin/cpack': Colors.LBLUE,
-#     '/usr/bin/qmake': Colors.LBLUE,
-#     '/usr/bin/scons': Colors.LBLUE,
-#     '/usr/bin/ninja': Colors.LBLUE,
-#     '/usr/bin/pkg-policy': Colors.LBLUE,
-#     '/usr/bin/bear': Colors.LBLUE,
-#     # scripting engines -> BLUE
-#     '/usr/bin/perl': Colors.LBLUE,
-#     '/usr/bin/ruby': Colors.LBLUE,
-# }
 
 
 

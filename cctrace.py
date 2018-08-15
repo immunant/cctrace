@@ -193,7 +193,7 @@ def handle_execve(evt: CCEvent, p: Policy):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
-    status, expected, tt = p.check(evt.exepath)
+    status, expected, tt = p.check(evt.exepath, evt.args)
     if not status:
         emsg = "{}Error{}: not using expected {}.\n"
         emsg += "Expected: {}{}{}\nObserved:"
@@ -273,7 +273,6 @@ def _setup_logging(args):
 def main():
     args = _parse_args()
     p.update(args)
-    assert p.is_checked("/usr/bin/gcc")
     _setup_logging(args)
     eol = b'##\n'
     try:

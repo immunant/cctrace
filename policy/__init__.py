@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import argparse
+import logging
 
 from itertools import chain
 
@@ -40,31 +41,52 @@ class Policy(object):
                 emsg = emsg.format(k, exp_typ, type(v))
                 sys.exit(emsg)
 
-        # path checks
+        # path and argument configuation
         for t in Policy.tools:
             tool_cfg: dict = cfg.pop(t.name, None)
             if tool_cfg:
+                # paths
                 path: str = tool_cfg.pop("path", None)
-                if not os.path.exists(path):
-                    emsg = "Error, couldn't find {} at {}"
-                    emsg = emsg.format(t.name, path)
-                    sys.exit(emsg)
-                canon_path = os.path.realpath(path)  # canonicalize
-                self._path_expect[t] = canon_path
+                if path:
+                    if type(path) != str:
+                        emsg = "Error, path key must be a string, was "
+                        emsg += path.__class__.__name__
+                        sys.exit(emsg)
+                    if not os.path.exists(path):
+                        emsg = "Error, couldn't find {} at {}"
+                        emsg = emsg.format(t.name, path)
+                        sys.exit(emsg)
+                    canon_path = os.path.realpath(path)  # canonicalize
+                    self._path_expect[t] = canon_path
+
+                targs: list[str] = tool_cfg.pop("args", None)
+                if targs:
+                    if type(targs) != list:
+                        emsg = "Error, args key must be a list of strings, was "
+                        emsg += targs.__class__.__name__
+                        sys.exit(emsg)
+                    self._args_expect[t] = targs
+
+                # did we process all configuration keys for t?
+                if len(tool_cfg):
+                    logging.warning("didn't understand policy for %s", t.name)
 
         self.name = cfg.pop("name", self.name)
         self.keep_going = cfg.pop("keep_going", self.keep_going)
 
-    def check(self, exepath: str) -> (bool, str, ToolType):
+    def check(self, exepath: str, args: list = None) -> (bool, str, ToolType):
         tt: ToolType = ToolType.from_path(exepath)
+
+        expected_args = self._args_expect.get(tt, None)
+        if expected_args:
+            # TODO: handle argument expectations
+            assert False, "not implemented. args: " + str(args)
+
         expected_path = self._path_expect.get(tt, None)
         observed_path = os.path.realpath(exepath)
         if expected_path:
             return expected_path == observed_path, expected_path, tt
-        expected_args = self._args_expect.get(tt, None)
-        if expected_args:
-            # TODO: handle argument expectations
-            assert False, "not implemented"
+
 
         return True, None, tt
 

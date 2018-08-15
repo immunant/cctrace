@@ -17,7 +17,8 @@ class ToolType(Enum):
     builder = 10,  # make, cmake, etc.
     interpreter = 11,
     util = 12,
-    unknown = 13,
+    assembler = 13,
+    unknown = 14,
 
     def __str__(self):
         return self.name
