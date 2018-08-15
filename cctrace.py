@@ -12,7 +12,7 @@ from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
 from ccevent import CCEvent, Colors, get_color
-from policy import policy as p, Policy
+from policy import policy as p, Policy, PolicyError
 from tools import get_tool_ver
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -92,7 +92,7 @@ def print_tree(roots: set, args) -> None:
                 duplicates.add(marker)
 
             # color policy-checked nodes green
-            if p.is_checked(node.name): # and p.check(node.name):
+            if p.is_checked(node.name) and p.check(node.name) is None:
                 ncolor = Colors.LGREEN
 
             # line = "{}{}{}".format(pre, ncolor, node.name)
@@ -193,22 +193,18 @@ def handle_execve(evt: CCEvent, p: Policy):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
-    status, expected, tt = p.check(evt.exepath, evt.args)
-    if not status:
-        emsg = "{}Error{}: not using expected {}.\n"
-        emsg += "Expected: {}{}{}\nObserved:"
-        cfmt = [Colors.LRED, Colors.NO_COLOR, tt.name, Colors.LYELLOW,
-                expected, Colors.NO_COLOR]
-        lfmt = ["", "", tt.name, "", expected, ""]
-        print(emsg.format(*cfmt))
-        print_single_branch(evt)
-        logging.error(emsg.format(*lfmt) + "\n" +
-                      _format_single_branch(evt, sty=AsciiStyle))
+    perror: PolicyError = p.check(evt.exepath, evt.args)
+    if perror:
+        c_observed_diag = _format_single_branch(evt, sty=ContStyle)
+        l_observed_diag = _format_single_branch(evt, sty=AsciiStyle)
+
+        perror.print(c_observed_diag)
+        perror.log(l_observed_diag)
+
         if not p.keep_going:
             quit(errno.EPERM)
     elif p.is_checked(evt.exepath):
         logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-
 
 
 handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
@@ -248,7 +244,7 @@ def _parse_args():
     """
     desc = 'listen for compiler invocations.'
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('-c', '--config',
+    parser.add_argument('-p', '--policy',
                         default='policy/default.cctrace.json',
                         type=argparse.FileType('r'),
                         help='trace configuration file')
