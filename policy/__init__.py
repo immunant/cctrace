@@ -78,12 +78,12 @@ class Policy(object):
     def __init__(self):
         self.name = "default"
         self.keep_going = False
-        self._path_expect: dict[ToolType, str] = dict()
-        self._args_expect: dict[ToolType, list[str]] = dict()
+        self._path_expect = dict()  # type: dict[ToolType, str]
+        self._args_expect = dict()  # type: dict[ToolType, list[str]]
 
     def update(self, args: argparse.Namespace) -> None:
 
-        pol_file: dict = json.load(args.policy)
+        pol_file = json.load(args.policy)  # type: dict
 
         # type check top-level elements of policy file
         for (k, v) in pol_file.items():
@@ -98,10 +98,10 @@ class Policy(object):
 
         # path and argument configuation
         for t in Policy.tools:
-            tool_cfg: dict = pol_file.pop(t.name, None)
+            tool_cfg = pol_file.pop(t.name, None)  # type: dict
             if tool_cfg:
                 # paths
-                path: str = tool_cfg.pop("path", None)
+                path = tool_cfg.pop("path", None)  # type: str
                 if path:
                     if type(path) != str:
                         emsg = "Error, path key must be a string, was "
@@ -114,7 +114,7 @@ class Policy(object):
                     canon_path = os.path.realpath(path)  # canonicalize
                     self._path_expect[t] = canon_path
 
-                targs: list[str] = tool_cfg.pop("args", None)
+                targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
                     if type(targs) != list:
                         emsg = "Error, args key must be a list of strings, was "
@@ -130,7 +130,7 @@ class Policy(object):
         self.keep_going = pol_file.pop("keep_going", self.keep_going)
 
     def check(self, exepath: str, args: str = "") -> PolicyError:
-        tt: ToolType = ToolType.from_path(exepath)
+        tt = ToolType.from_path(exepath)  # type: ToolType
 
         expected_args = self._args_expect.get(tt, None)
         if expected_args:
@@ -146,7 +146,7 @@ class Policy(object):
         return None
 
     def is_checked(self, exepath: str) -> bool:
-        tt: ToolType = ToolType.from_path(exepath)
+        tt = ToolType.from_path(exepath)  # type: ToolType
         return tt in self._path_expect or tt in self._args_expect
 
 
