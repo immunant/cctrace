@@ -91,11 +91,16 @@ ToolType._matchers = {k: re.compile(v) for (k, v) in {
 
 def get_tool_ver(exepath: str):
     """
-
+    Query and cache tool version. Some tools are ignored.
     """
     version = get_tool_ver.cache.get(exepath, None)
     if version:
         return version
+
+    # TODO: special case bear? old versions only support -v, 
+    # new versions only support --version.
+    if exepath == "/usr/bin/bear":
+        return None
 
     tt = ToolType.from_path(exepath)
     if tt == ToolType.unknown or tt == ToolType.util:
