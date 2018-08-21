@@ -2,10 +2,7 @@
     "name": "host default compiler",
     "keep_going": false,
     "c_compiler": {
-        "path": "/usr/bin/cc",
-        "args": [
-          "-O2"
-        ]
+        "path": "/usr/bin/cc"
     },
     "cxx_compiler": {
         "path": "/usr/bin/c++"
