@@ -78,12 +78,14 @@ class Policy(object):
     def __init__(self):
         self.name = "default"
         self.keep_going = False
-        self._path_expect: dict[ToolType, str] = dict()
-        self._args_expect: dict[ToolType, list[str]] = dict()
+        self._path_expect = dict()  # type: dict[ToolType, str]
+        self._args_expect = dict()  # type: dict[ToolType, list[str]]
+        self._compile_args_expect = dict()  # type: dict[ToolType, list[str]]
+        self._link_args_expect = dict()  # type: dict[ToolType, list[str]]
 
     def update(self, args: argparse.Namespace) -> None:
 
-        pol_file: dict = json.load(args.policy)
+        pol_file = json.load(args.policy)  # type: dict
 
         # type check top-level elements of policy file
         for (k, v) in pol_file.items():
@@ -98,10 +100,11 @@ class Policy(object):
 
         # path and argument configuation
         for t in Policy.tools:
-            tool_cfg: dict = pol_file.pop(t.name, None)
+            tool_cfg = pol_file.pop(t.name, None)  # type: dict
             if tool_cfg:
                 # paths
-                path: str = tool_cfg.pop("path", None)
+                path = tool_cfg.pop("path", None)  # type: str
+                path = os.path.expanduser(path)
                 if path:
                     if type(path) != str:
                         emsg = "Error, path key must be a string, was "
@@ -114,13 +117,31 @@ class Policy(object):
                     canon_path = os.path.realpath(path)  # canonicalize
                     self._path_expect[t] = canon_path
 
-                targs: list[str] = tool_cfg.pop("args", None)
+                targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
                     if type(targs) != list:
                         emsg = "Error, args key must be a list of strings, was "
                         emsg += targs.__class__.__name__
                         sys.exit(emsg)
                     self._args_expect[t] = targs
+
+                # compiler specific keys
+                if t.is_compiler():
+                    targs = tool_cfg.pop("compile_args", None)  # type: list[str]
+                    if targs:
+                        if type(targs) != list:
+                            emsg = "Error, compile_args key must be a list of strings, was "
+                            emsg += targs.__class__.__name__
+                            sys.exit(emsg)
+                        self._compile_args_expect[t] = targs
+
+                    targs = tool_cfg.pop("link_args", None)  # type: list[str]
+                    if targs:
+                        if type(targs) != list:
+                            emsg = "Error, link_args key must be a list of strings, was "
+                            emsg += targs.__class__.__name__
+                            sys.exit(emsg)
+                        self._compile_args_expect[t] = targs
 
                 # did we process all configuration keys for t?
                 if len(tool_cfg):
@@ -130,13 +151,26 @@ class Policy(object):
         self.keep_going = pol_file.pop("keep_going", self.keep_going)
 
     def check(self, exepath: str, args: str = "") -> PolicyError:
-        tt: ToolType = ToolType.from_path(exepath)
+        tt = ToolType.from_path(exepath)  # type: ToolType
+
+        def check_args(expected_args) -> None:
+            if expected_args:
+                for expected in expected_args:
+                    if expected not in args:
+                        return PolicyError.argument_mismatch(tt, 
+                                                             expected, 
+                                                             args)
 
         expected_args = self._args_expect.get(tt, None)
-        if expected_args:
-            for expected in expected_args:
-                if expected not in args:
-                    return PolicyError.argument_mismatch(tt, expected, args)
+        check_args(expected_args)
+
+        if tt.is_compiler():
+            if " -c " in args:
+                expected_args = self._compile_args_expect.get(tt, None)
+                check_args(expected_args)
+            else:
+                expected_args = self._link_args_expect.get(tt, None)
+                check_args(expected_args)
 
         expected_path = self._path_expect.get(tt, None)
         observed_path = os.path.realpath(exepath)
@@ -146,7 +180,7 @@ class Policy(object):
         return None
 
     def is_checked(self, exepath: str) -> bool:
-        tt: ToolType = ToolType.from_path(exepath)
+        tt = ToolType.from_path(exepath)  # type: ToolType
         return tt in self._path_expect or tt in self._args_expect
 
 

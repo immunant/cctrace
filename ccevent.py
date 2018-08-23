@@ -96,7 +96,10 @@ class CCEvent(object):
     @property
     def args(self) -> str:
         args = self._parse_eargs_field(b"args=")
-        return " ".join(args)
+        if args:
+            return " ".join(args)
+        else:
+            return ""
 
     @property
     def env(self) -> dict:

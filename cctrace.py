@@ -193,7 +193,7 @@ def handle_execve(evt: CCEvent, p: Policy):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
-    perror: PolicyError = p.check(evt.exepath, evt.args)
+    perror = p.check(evt.exepath, evt.args)  # type: PolicyError
     if perror:
         c_observed_diag = _format_single_branch(evt, sty=ContStyle)
         l_observed_diag = _format_single_branch(evt, sty=AsciiStyle)
