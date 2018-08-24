@@ -33,16 +33,16 @@ class CCNode(Node):
         return get_color(self.name)
 
     def hash_subtree(self):
-        res = hash(self.name)
+        res = [hash(self.name)]
         for child in self.children:
-            res = res * 31 + child.hash_subtree()
-        return res
+            res.append(child.hash_subtree)
+        return hash(tuple(res))
 
     def hash_roots(self):
-        res = hash(self.name)
+        res = [hash(self.name)]
         if not self.is_root:
-            res = res * 31 + self.parent.hash_roots()
-        return res
+            res.append(self.parent.hash_roots())
+        return hash(tuple(res))
 
     def __hash__(self):
         return hash(self.name)
@@ -79,17 +79,25 @@ def print_tree(roots: set, args) -> None:
     duplicates = set()
     forrest = []
 
+    # first remove duplicate subtrees
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):
 
             marker = node.hash_subtree()
-            ncolor = node.color
             if node.parent:
-                marker = marker * 31 + node.parent.hash_roots()
+                marker = hash((marker, node.parent.hash_roots()))
             if marker in duplicates:
-                continue
+                par = node.parent
+                if par:
+                    par.children = [c for c in par.children if c != node]
             else:
                 duplicates.add(marker)
+
+    # ... then print
+    for root in roots:
+        for pre, _, node in RenderTree(root, style=STY):
+
+            ncolor = node.color
 
             # color policy-checked nodes green
             if p.is_checked(node.name) and p.check(node.name) is None:
@@ -252,6 +260,12 @@ def _parse_args():
                         default="cctrace.log",
                         action='store', dest='logfile',
                         help='set name of logfile')
+
+    parser.add_argument('-i', '--ignore-prefix',
+                        default=None,
+                        action='store', dest='ignore_prefix',
+                        help='ignore binaries under prefix')
+
     args = parser.parse_args()
 
     return args

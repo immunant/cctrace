@@ -13,7 +13,7 @@
     "cxx_compiler": {
         "path": "~/selfrando-testing/local/bin/clang++",
         "compile_args" : [
-            "-frandom-seed"
+            "-frandom-seed="
         ]
      },
      "linker": {

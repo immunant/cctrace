@@ -78,12 +78,17 @@ class Policy(object):
     def __init__(self):
         self.name = "default"
         self.keep_going = False
+        self.ignore_prefix = None
         self._path_expect = dict()  # type: dict[ToolType, str]
         self._args_expect = dict()  # type: dict[ToolType, list[str]]
         self._compile_args_expect = dict()  # type: dict[ToolType, list[str]]
         self._link_args_expect = dict()  # type: dict[ToolType, list[str]]
 
     def update(self, args: argparse.Namespace) -> None:
+
+        if args.ignore_prefix:
+            self.ignore_prefix = os.path.expanduser(args.ignore_prefix)
+            self.ignore_prefix = os.path.expandvars(self.ignore_prefix)
 
         pol_file = json.load(args.policy)  # type: dict
 
