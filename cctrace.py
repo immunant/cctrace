@@ -261,10 +261,6 @@ def _parse_args():
                         action='store', dest='logfile',
                         help='set name of logfile')
 
-    parser.add_argument('-i', '--ignore-prefix',
-                        default=None,
-                        action='store', dest='ignore_prefix',
-                        help='ignore binaries under prefix')
 
     args = parser.parse_args()
 

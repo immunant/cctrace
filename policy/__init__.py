@@ -30,13 +30,13 @@ class PolicyError(object):
 
     @staticmethod
     def argument_mismatch(tt, expected, observed):
-        message = "missing argument to {}."
+        message = "missing argument to {}"
         message = message.format(tt.name)
         return PolicyError(message, tt, expected, observed)
 
     @staticmethod
     def tool_mismatch(tt, expected, observed):
-        message = "not using expected {}."
+        message = "not using expected {}"
         message = message.format(tt.name)
         return PolicyError(message, tt, expected, observed)
 
@@ -85,10 +85,6 @@ class Policy(object):
         self._link_args_expect = dict()  # type: dict[ToolType, list[str]]
 
     def update(self, args: argparse.Namespace) -> None:
-
-        if args.ignore_prefix:
-            self.ignore_prefix = os.path.expanduser(args.ignore_prefix)
-            self.ignore_prefix = os.path.expandvars(self.ignore_prefix)
 
         pol_file = json.load(args.policy)  # type: dict
 
@@ -158,9 +154,9 @@ class Policy(object):
     def check(self, exepath: str, args: str = "") -> PolicyError:
         tt = ToolType.from_path(exepath)  # type: ToolType
 
-        def check_args(expected_args) -> None:
-            if expected_args:
-                for expected in expected_args:
+        def check_args(exp_args) -> PolicyError:
+            if exp_args:
+                for expected in exp_args:
                     if expected not in args:
                         return PolicyError.argument_mismatch(tt, 
                                                              expected, 
