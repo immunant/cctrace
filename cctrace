@@ -2,6 +2,12 @@
 
 set -e 
 
+if [[ "$@" == "-h" || "$@" == "--help" ]]; then
+
+    python3 cctrace.py --help
+    exit 0
+fi
+
 # must run as root.
 if [[ "$EUID" -ne 0 ]]; then 
     echo >&2 "Please run as root"; exit 1
@@ -10,8 +16,8 @@ fi
 # check that sysdig is installed and working
 if type "sysdig" > /dev/null 2>&1; then
   # older versions of sysdig does not have a --version flag, so use --help
-  sysdig --help | grep -q "sysdig version 0.22" || \
-    { echo >&2 "sysdig version 0.22 expected"; exit 1; }
+  sysdig --help | grep -q "sysdig version 0.23" || \
+    { echo >&2 "sysdig version 0.23 expected"; exit 1; }
 else
     echo >&2 "Please make sure sysdig is installed"; exit 1
 fi
@@ -33,4 +39,4 @@ FORMAT="%thread.tid#%evt.type#%proc.exepath#%proc.pname#%proc.pid#%proc.ppid"
 FORMAT="$FORMAT#%proc.args#%evt.args##"
 FILTER="(evt.type=execve or evt.type=clone or evt.type=procexit) and evt.failed=false and user.name=$(logname)"
 sysdig --print-base64 -p"$FORMAT" "${FILTER}" \
-  | USER=$(logname) python3 -u cctrace.py "$@"
+  | USER=$() python3 -u cctrace.py "$@"

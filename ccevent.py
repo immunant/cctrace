@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import os
-import re
 import base64
-import subprocess as sp
+
 # from typing import Optional, List  # not available in Python3.4
+
+from tools import ToolType
 
 
 class Colors:
@@ -19,107 +19,25 @@ class Colors:
     NO_COLOR = '\033[0m'
 
 
-# Known binaries
-COLOR_MAP = {
-    # utilities -> GRAY (all matched by regex now)
-    # host translators -> LYELLOW
-    '/usr/bin/yasm': Colors.LYELLOW,
-    '/usr/bin/ar': Colors.LYELLOW,
-    '/usr/bin/as': Colors.LYELLOW,
-    '/usr/bin/x86_64-linux-gnu-as': Colors.LYELLOW,
-    '/usr/bin/ranlib': Colors.LYELLOW,
-    '/usr/bin/ld': Colors.LYELLOW,
-    '/usr/bin/ld.bfd': Colors.LYELLOW,
-    '/usr/bin/ld.gold': Colors.LYELLOW,
-    '/usr/bin/gcc': Colors.LYELLOW,
-    '/usr/bin/cc': Colors.LYELLOW,
-    '/usr/bin/g++': Colors.LYELLOW,
-    '/usr/bin/clang': Colors.LYELLOW,
-    '/usr/bin/clang++': Colors.LYELLOW,
-    # build tools -> BLUE
-    '/usr/bin/make': Colors.LBLUE,
-    '/usr/bin/cmake': Colors.LBLUE,
-    '/usr/bin/ccmake': Colors.LBLUE,
-    '/usr/bin/ctest': Colors.LBLUE,
-    '/usr/bin/cpack': Colors.LBLUE,
-    '/usr/bin/qmake': Colors.LBLUE,
-    '/usr/bin/scons': Colors.LBLUE,
-    '/usr/bin/ninja': Colors.LBLUE,
-    '/usr/bin/pkg-config': Colors.LBLUE,
-    '/usr/bin/bear': Colors.LBLUE,
-    # scripting engines -> BLUE
-    '/usr/bin/perl': Colors.LBLUE,
-    '/usr/bin/ruby': Colors.LBLUE,
-}
-
-
-_host_python_re = re.compile(r"/usr/(local/)?bin/python(\d\.\d|\d)?")
-_host_tclsh_re = re.compile(r"/usr/(local/)?bin/tclsh(\d\.\d|\d)?")
-_host_util_re = re.compile(r"/(usr/)?bin/.*")
-_build_tool_re = re.compile(
-    r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)")
-_gcc_lib_re = re.compile(
-    r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)")
-_gcc_bin_re = re.compile(
-    r"/usr/bin/(x86_64|i686|arm|arm64|aarch64)-linux-gnu-")    
-_llvm_lib_re = re.compile(r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?")
-# binaries that are likely compiler drivers
-_compiler_driver_re = re.compile(
-    r"[^\0]+/(clang(\+\+)?|gcc|g\+\+|suncc|icc|cc|c\+\+)$")
-_linker_re = re.compile(r"[^\0]+/ld(\.gold|\.bfd|\.ldd)?$")
-
-
-def get_compiler_or_linker_ver(exepath: str):
-    """
-    TODO: move compiler identification logic into separate file?
-    """
-    version = get_compiler_or_linker_ver.cache.get(exepath, None)
-    if version:
-        return version
-
-    m = _compiler_driver_re.match(exepath)
-    m = m if m else _linker_re.match(exepath)
-    if not m:
-        return None
-
-    exepath = os.path.realpath(exepath)  # canonicalize path
-    try:
-        p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
-        stdout, stderr = p.communicate()
-        ver = stdout.split(b'\n', 1)[0]  # get first line
-        # print("{} -> {}".format(exepath, ver))
-        ver = ver.decode()  # bytes -> str
-        ver = re.sub(r"\s\(.*\)", "", ver)  # remove parenthetical info if any
-        get_compiler_or_linker_ver.cache[exepath] = ver
-        return ver
-    except OSError:
-        return None
-
-
-get_compiler_or_linker_ver.cache = dict()  # init cache
-
 
 def get_color(exepath: str) -> str:
     color = get_color.cache.get(exepath, None)
     if color:
         return color
 
-    cc_ver = get_compiler_or_linker_ver(exepath)
-    if cc_ver:
+    tt = ToolType.from_path(exepath)
+    if tt.is_compiler_or_linker():
         color = Colors.LRED
-    elif _host_python_re.match(exepath) or \
-            _host_tclsh_re.match(exepath) or \
-            _build_tool_re.match(exepath):
-        color = Colors.LBLUE
-    elif _gcc_lib_re.match(exepath) or \
-            _llvm_lib_re.match(exepath) or \
-            _gcc_bin_re.match(exepath):
+    elif tt.is_compiler_helper() or \
+            tt == ToolType.archiver or \
+            tt == ToolType.indexer:
         color = Colors.LYELLOW
-    else:
-        color = COLOR_MAP.get(exepath, Colors.NO_COLOR)
-
-    if color == Colors.NO_COLOR and _host_util_re.match(exepath):
+    elif tt == ToolType.interpreter or tt == ToolType.builder:
+        color = Colors.LBLUE
+    elif tt == ToolType.util:
         color = Colors.DGRAY
+    else:
+        color = Colors.NO_COLOR
 
     get_color.cache[exepath] = color
     return color
@@ -178,7 +96,10 @@ class CCEvent(object):
     @property
     def args(self) -> str:
         args = self._parse_eargs_field(b"args=")
-        return " ".join(args)
+        if args:
+            return " ".join(args)
+        else:
+            return ""
 
     @property
     def env(self) -> dict:

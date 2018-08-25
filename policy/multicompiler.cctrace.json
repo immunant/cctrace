@@ -1,0 +1,28 @@
+{
+    "name": "multicompiler",
+    "keep_going": false,
+    "c_compiler": {
+        "path": "~/selfrando-testing/local/bin/clang",
+        "compile_args": [
+            "-frandom-seed="
+        ],
+        "link_args": [
+            "-random-seed="
+        ]
+    },
+    "cxx_compiler": {
+        "path": "~/selfrando-testing/local/bin/clang++",
+        "compile_args": [
+            "-frandom-seed="
+        ]
+     },
+     "linker": {
+        "path": "~/selfrando-testing/local/bin/ld.gold",
+        "args": [
+          "-Wl,--plugin-opt,-random-seed=",
+          "-Wl,--random-seed="
+        ]
+     }
+
+}
+

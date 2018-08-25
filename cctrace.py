@@ -11,8 +11,9 @@ import argparse
 from anytree import Node, RenderTree
 from anytree.render import AsciiStyle, ContStyle
 
-from ccevent import CCEvent, Colors, get_color, get_compiler_or_linker_ver
-
+from ccevent import CCEvent, Colors, get_color
+from policy import policy as p, Policy, PolicyError
+from tools import get_tool_ver
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
 STY = ContStyle if LANG_IS_UTF8 else AsciiStyle
@@ -32,23 +33,23 @@ class CCNode(Node):
         return get_color(self.name)
 
     def hash_subtree(self):
-        res = hash(self.name)
+        res = [hash(self.name)]
         for child in self.children:
-            res = res * 31 + child.hash_subtree()
-        return res
+            res.append(child.hash_subtree)
+        return hash(tuple(res))
 
     def hash_roots(self):
-        res = hash(self.name)
+        res = [hash(self.name)]
         if not self.is_root:
-            res = res * 31 + self.parent.hash_roots()
-        return res
+            res.append(self.parent.hash_roots())
+        return hash(tuple(res))
 
     def __hash__(self):
         return hash(self.name)
 
 
 nodes_by_pid = dict()  # holds nodes for active processes
-roots = set()  # holds root nodes, never shrinks
+roots = set()  # holds root nodes; never shrinks
 
 
 def print_tree(roots: set, args) -> None:
@@ -77,29 +78,35 @@ def print_tree(roots: set, args) -> None:
 
     duplicates = set()
     forrest = []
-    special_prefix = args.multicompiler_prefix  # type: Optional[str]
-    special_prefix = "\0invalid" if not special_prefix else special_prefix
 
+    # first remove duplicate subtrees
     for root in roots:
         for pre, _, node in RenderTree(root, style=STY):
 
             marker = node.hash_subtree()
-            ncolor = node.color
             if node.parent:
-                marker = marker * 31 + node.parent.hash_roots()
+                marker = hash((marker, node.parent.hash_roots()))
             if marker in duplicates:
-                continue
+                par = node.parent
+                if par:
+                    par.children = [c for c in par.children if c != node]
             else:
                 duplicates.add(marker)
 
-            # color multicompiler nodes green
-            if node.name.startswith(special_prefix):
+    # ... then print
+    for root in roots:
+        for pre, _, node in RenderTree(root, style=STY):
+
+            ncolor = node.color
+
+            # color policy-checked nodes green
+            if p.is_checked(node.name) and p.check(node.name) is None:
                 ncolor = Colors.LGREEN
 
             # line = "{}{}{}".format(pre, ncolor, node.name)
             line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
             # nodes representing compiler drivers have version information
-            cc_ver = get_compiler_or_linker_ver(node.name)
+            cc_ver = get_tool_ver(node.name)
             if cc_ver:
                 line += Colors.DGRAY + " " + cc_ver
             line = line + Colors.NO_COLOR
@@ -137,7 +144,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
         ncolor = node.color if sty == ContStyle else ""
         line = "{}{}{} ({})".format(pre, ncolor, node.name, node.pid)
         # nodes representing compiler drivers or linkers have version info
-        cc_ver = get_compiler_or_linker_ver(node.name)
+        cc_ver = get_tool_ver(node.name)
         if cc_ver:
             line += dgray + " " + cc_ver
         line = line + nocol
@@ -158,7 +165,7 @@ def _format_single_branch(evt: CCEvent, sty=ContStyle) -> str:
     return "\n".join(lines)
 
 
-def handle_execve(evt: CCEvent, args):
+def handle_execve(evt: CCEvent, p: Policy):
     child_pid, parent_pid = evt.pid, evt.ppid
 
     child = evt.exepath
@@ -194,24 +201,18 @@ def handle_execve(evt: CCEvent, args):
     # NOTE: Execve is the only Linux kernel entry point to run a
     # program. The user space API has several variants like execl
     # and fexecve. They all end up invoking the execve system call.
+    perror = p.check(evt.exepath, evt.args)  # type: PolicyError
+    if perror:
+        c_observed_diag = _format_single_branch(evt, sty=ContStyle)
+        l_observed_diag = _format_single_branch(evt, sty=AsciiStyle)
 
-    ver = get_compiler_or_linker_ver(evt.exepath)
-    under_mc_prefix = evt.exepath.startswith(args.multicompiler_prefix)
-    if ver and args.require_multicompiler:
-        if not under_mc_prefix:
-            emsg = "{}Error{}: not using multicompiler here:"
-            print(emsg.format(Colors.LRED, Colors.NO_COLOR))
-            print_single_branch(evt)
-            logging.error(emsg.format("", "") + "\n" +
-                          _format_single_branch(evt, sty=AsciiStyle))
+        perror.print(c_observed_diag)
+        perror.log(l_observed_diag)
+
+        if not p.keep_going:
             quit(errno.EPERM)
-        else:  # ver is not null
-            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-    elif ver:  # any tools is fine but log non-mc-tools as warnings
-        if under_mc_prefix:
-            logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
-        else:
-            logging.warning("%d:%s %s", evt.pid, evt.exepath, evt.args)
+    elif p.is_checked(evt.exepath):
+        logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
 
 
 handle_execve.eargs_re = re.compile(r".*exe=(.*)\sargs=")
@@ -245,60 +246,24 @@ def handle_procexit(evt: CCEvent, args):
     nodes_by_pid.pop(pid, None)  # removes node if present
 
 
-def _check_multicompiler_prefix(prefix: str) -> bool:
-    slugs = [
-        'bin/clang',
-        'bin/clang++',
-        'bin/llvm-nm',
-        'bin/llvm-ar',
-        'bin/llvm-ranlib',
-    ]
-
-    if not os.path.isdir(prefix):
-        return False
-
-    for s in slugs:
-        if not os.path.exists(os.path.join(prefix, s)):
-            return False
-
-    # TODO: invoke clang --version and look for multicompiler in output
-    return True
-
-
 def _parse_args():
     """
     define and parse command line arguments here.
     """
     desc = 'listen for compiler invocations.'
     parser = argparse.ArgumentParser(description=desc)
-    # we use expanduser rather than $HOME since we might run under sudo
-    env_user = os.getenv('USER')
-    mp_default = os.path.expanduser("~" + env_user)
-    mp_default = os.path.join(mp_default,
-                              "selfrando-testing/local")
-    parser.add_argument('-m', '--multicompiler-prefix',
-                        default=mp_default,
-                        action='store', dest='multicompiler_prefix',
-                        help='set multicompiler install prefix')
+    parser.add_argument('-p', '--policy',
+                        default='policy/default.cctrace.json',
+                        type=argparse.FileType('r'),
+                        help='trace configuration file')
     parser.add_argument('-l', '--logfile',
                         default="cctrace.log",
                         action='store', dest='logfile',
                         help='set name of logfile')
-    parser.add_argument('-a', '--allow-non-multicompiler',
-                        default=True,
-                        action='store_false', dest='require_multicompiler',
-                        help="allow non-multicompiler tools")
+
 
     args = parser.parse_args()
-    multicompiler_found = _check_multicompiler_prefix(
-                            args.multicompiler_prefix)
-    if args.require_multicompiler and not multicompiler_found:
-        emsg = "not a valid multicompiler prefix: "
-        emsg = emsg + args.multicompiler_prefix
-        print(emsg)
-        quit(errno.ENOENT)  # TODO: why doesn't this quit the outer script?
-    elif not multicompiler_found:
-        args.multicompiler_prefix = "/no/such/path/I/hope"
+
     return args
 
 
@@ -313,6 +278,7 @@ def _setup_logging(args):
 
 def main():
     args = _parse_args()
+    p.update(args)
     _setup_logging(args)
     eol = b'##\n'
     try:
@@ -325,14 +291,14 @@ def main():
             evt = CCEvent.parse(line)
 
             if evt.type == b'execve':
-                handle_execve(evt, args)
+                handle_execve(evt, p)
             elif evt.type == b'clone':
                 # clone returns twice; once for parent and child.
                 if b"res=0 " not in evt.eargs:
                     continue  # ignore parent event
                 handle_clone(evt)
             elif evt.type == b'procexit':
-                handle_procexit(evt, args)
+                handle_procexit(evt, p)
             else:
                 assert False, "Unexpected event type: " + str(evt.type)
 
