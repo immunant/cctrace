@@ -100,12 +100,12 @@ class Policy(object):
                         emsg += path.__class__.__name__
                         sys.exit(emsg)
                     path = os.path.expanduser(path)
-                    if not os.path.exists(path):
-                        emsg = "Error, couldn't find {} at {}"
-                        emsg = emsg.format(t.name, path)
-                        sys.exit(emsg)
-                    canon_path = os.path.realpath(path)  # canonicalize
-                    self._path_expect[t] = canon_path
+                    # if not os.path.exists(path):
+                    #     emsg = "Error, couldn't find {} at {}"
+                    #     emsg = emsg.format(t.name, path)
+                    #     sys.exit(emsg)
+                    # canon_path = os.path.realpath(path)  # canonicalize
+                    self._path_expect[t] = path
 
                 targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
