@@ -110,7 +110,7 @@ def trace(sysdig_exe: str, p: Policy):
 
     except KeyboardInterrupt:
         print()
-        pt.print_tree()
+        pt.print_tree(p)
 
 
 def _setup_logging(args):

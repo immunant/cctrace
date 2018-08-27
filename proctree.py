@@ -6,6 +6,7 @@ from anytree.render import AsciiStyle, ContStyle
 
 from ccevent import CCEvent, get_color, Colors
 from tools import get_tool_ver
+from policy import Policy
 
 
 LANG_IS_UTF8 = os.environ.get('LANG', '').lower().endswith('utf-8')
@@ -144,7 +145,7 @@ class ProcTree(object):
 
         return "\n".join(lines)
 
-    def print_tree(self) -> None:
+    def print_tree(self, p: Policy) -> None:
         """
         NOTE: this function is called right before cctrace.py exits and only once.
         NOTE: this is a best effort to compactly represent the process tree.
