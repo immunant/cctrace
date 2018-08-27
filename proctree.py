@@ -24,7 +24,7 @@ class CCNode(Node):
     def hash_subtree(self):
         res = [hash(self.name)]
         for child in self.children:
-            res.append(child.hash_subtree)
+            res.append(child.hash_subtree())
         return hash(tuple(res))
 
     def hash_roots(self):
@@ -175,7 +175,7 @@ class ProcTree(object):
 
         # first remove duplicate subtrees
         for root in roots:
-            for pre, _, node in RenderTree(root, style=STY):
+            for _, _, node in RenderTree(root, style=STY):
 
                 marker = node.hash_subtree()
                 if node.parent:
