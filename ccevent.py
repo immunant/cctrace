@@ -19,7 +19,6 @@ class Colors:
     NO_COLOR = '\033[0m'
 
 
-
 def get_color(exepath: str) -> str:
     color = get_color.cache.get(exepath, None)
     if color:

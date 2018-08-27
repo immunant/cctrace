@@ -7,18 +7,7 @@ import logging
 from itertools import chain
 
 from tools import ToolType
-
-# TODO: avoid duplicating this class
-class Colors:
-    # Terminal escape codes
-    DGRAY = '\033[90m'
-    LRED = '\033[91m'
-    LGREEN = '\033[92m'
-    LYELLOW = '\033[93m'
-    LBLUE = '\033[94m'
-    LMAGENTA = '\033[95m'
-    LCYAN = '\033[96m'
-    NO_COLOR = '\033[0m'
+from ccevent import Colors
 
 
 class PolicyError(object):
@@ -158,8 +147,8 @@ class Policy(object):
             if exp_args:
                 for expected in exp_args:
                     if expected not in args:
-                        return PolicyError.argument_mismatch(tt, 
-                                                             expected, 
+                        return PolicyError.argument_mismatch(tt,
+                                                             expected,
                                                              args)
 
         expected_args = self._args_expect.get(tt, None)
@@ -183,6 +172,3 @@ class Policy(object):
     def is_checked(self, exepath: str) -> bool:
         tt = ToolType.from_path(exepath)  # type: ToolType
         return tt in self._path_expect or tt in self._args_expect
-
-
-policy = Policy()

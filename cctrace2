@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+# import psutil
+import logging
+import argparse
+import subprocess
+
+from ccevent import CCEvent
+from policy import Policy, PolicyError
+from proctree import ProcTree
+
+
+def prompt_sudo():
+    """
+    Try to authenticate user as sudoer.
+    :return: zero on success, non-zero otherwise.
+    """
+    ret = 0
+    if os.geteuid() != 0:
+        msg = "[sudo] password for %u:"
+        ret = subprocess.check_call("sudo -v -p '%s'" % msg, shell=True)
+    return ret
+
+
+def get_cmd_output_or_exit(cmd: list, emsg=None) -> str:
+    try:
+        output = subprocess.check_output(cmd)  # type: bytes
+        return output.decode()  # type: str
+    except subprocess.CalledProcessError:
+        if not emsg:
+            emsg = "Error, command failed: "
+            emsg = emsg + " ".join(cmd)
+        sys.exit(emsg)
+
+
+def trace_execve(evt: CCEvent, pt: ProcTree, p: Policy):
+    pt.handle_execve(evt)
+
+    # nothing more to do if this was the enter-syscall event
+    if evt.eargs.startswith(b'filename='):
+        return
+
+    # NOTE: Execve is the only Linux kernel entry point to run a
+    # program. The user space API has several variants like execl
+    # and fexecve. They all end up invoking the execve system call.
+    perror = p.check(evt.exepath, evt.args)  # type: PolicyError
+    if perror:
+        c_observed_diag = pt.format_single_branch(evt, fancy_output=True)
+        l_observed_diag = pt.format_single_branch(evt, fancy_output=False)
+
+        perror.print(c_observed_diag)
+        perror.log(l_observed_diag)
+
+        if not p.keep_going:
+            quit(1)
+    elif p.is_checked(evt.exepath):
+        logging.info("%d:%s %s", evt.pid, evt.exepath, evt.args)
+
+
+def trace_procexit(evt: CCEvent, pt: ProcTree):
+    pt.nodes_by_pid.pop(evt.pid, None)  # removes node if present
+
+
+def trace(sysdig_exe: str, p: Policy):
+
+    logname = get_cmd_output_or_exit(['logname']).rstrip()
+    pt = ProcTree()
+
+    # build sysdig command
+    filtspec = "(evt.type=execve or evt.type=clone or evt.type=procexit)"
+    filtspec = filtspec + " and evt.failed=false and user.name=" + logname
+
+    formatspec = "%thread.tid#%evt.type#%proc.exepath#%proc.pname#" + \
+        "%proc.pid#%proc.ppid#%proc.args#%evt.args##"
+
+    sysdig_cmd = ['sudo', sysdig_exe, '--print-base64',
+                  '-p', formatspec,
+                  filtspec]
+
+    try:
+        # bufsize=1 requests line buffering
+        _sysdig = subprocess.Popen(sysdig_cmd,
+                                   stdout=subprocess.PIPE,
+                                   bufsize=1,
+                                   shell=False)
+
+        eol = b'##\n'
+        while True:
+            # read input as bytes since its not guaranteed to be UTF-8
+            # line = sys.stdin.buffer.readline()
+            line = _sysdig.stdout.readline()
+            while not line.endswith(eol):
+                line += sys.stdin.buffer.readline()
+
+            evt = CCEvent.parse(line)
+            if evt.type == b'execve':
+                trace_execve(evt, pt, p)
+            elif evt.type == b'clone':
+                # clone returns twice; once for parent and child.
+                if b"res=0 " not in evt.eargs:
+                    continue  # ignore parent event
+                pt.handle_clone(evt)
+            elif evt.type == b'procexit':
+                pt.handle_procexit(evt)
+            else:
+                assert False, "Unexpected event type: " + str(evt.type)
+
+    except KeyboardInterrupt:
+        print()
+        pt.print_tree()
+
+
+def _setup_logging(args):
+    logging.basicConfig(
+        filename=args.logfile,
+        format="%(asctime)-15s:%(levelname)s:%(message)s",
+        filemode='w',
+        level=logging.DEBUG)
+    logging.debug("argv: %s", " ".join(sys.argv))
+
+
+def _parse_args():
+    """
+    define and parse command line arguments here.
+    """
+    desc = 'listen for compiler invocations.'
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-p', '--policy',
+                        default='policy/default.cctrace.json',
+                        type=argparse.FileType('r'),
+                        help='trace configuration file')
+    parser.add_argument('-l', '--logfile',
+                        default="cctrace.log",
+                        action='store', dest='logfile',
+                        help='set name of logfile')
+
+    args = parser.parse_args()
+
+    return args
+
+
+def main():
+
+    # is user authenticated as a sudoer?
+    if prompt_sudo() != 0:
+        sys.exit('This script requires superuser privileges.')
+
+    args = _parse_args()
+    p = Policy()
+    p.update(args)
+    _setup_logging(args)
+
+    sysdig_exe = get_cmd_output_or_exit(['which', 'sysdig'], "Error, sysdig not found")
+    sysdig_exe = sysdig_exe.rstrip()  # get rid of trailing newline
+    sysdig_ver = get_cmd_output_or_exit([sysdig_exe, '--version'])
+
+    # check that we have the right version of sysdig
+    expected = 'sysdig version 0.23'
+    if not sysdig_ver.startswith(expected):
+        emsg = \
+            "Error, sysdig version mismatch.\n" \
+            "Expected: {}\nActual..: {}\n".format(expected, sysdig_ver)
+        sys.exit(emsg)
+
+    trace(sysdig_exe, p)
+
+
+if __name__ == "__main__":
+    main()
