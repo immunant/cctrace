@@ -94,12 +94,12 @@ class Policy(object):
             if tool_cfg:
                 # paths
                 path = tool_cfg.pop("path", None)  # type: str
-                path = os.path.expanduser(path)
                 if path:
                     if type(path) != str:
                         emsg = "Error, path key must be a string, was "
                         emsg += path.__class__.__name__
                         sys.exit(emsg)
+                    path = os.path.expanduser(path)
                     if not os.path.exists(path):
                         emsg = "Error, couldn't find {} at {}"
                         emsg = emsg.format(t.name, path)
