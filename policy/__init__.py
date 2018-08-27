@@ -131,7 +131,7 @@ class Policy(object):
                             emsg = "Error, link_args key must be a list of strings, was "
                             emsg += targs.__class__.__name__
                             sys.exit(emsg)
-                        self._compile_args_expect[t] = targs
+                        self._link_args_expect[t] = targs
 
                 # did we process all configuration keys for t?
                 if len(tool_cfg):
@@ -150,17 +150,24 @@ class Policy(object):
                         return PolicyError.argument_mismatch(tt,
                                                              expected,
                                                              args)
+            return None
 
         expected_args = self._args_expect.get(tt, None)
-        check_args(expected_args)
+        result = check_args(expected_args)
+        if result:
+            return result
 
         if tt.is_compiler():
             if " -c " in args:
                 expected_args = self._compile_args_expect.get(tt, None)
-                check_args(expected_args)
+                result = check_args(expected_args)
+                if result:
+                    return result
             else:
                 expected_args = self._link_args_expect.get(tt, None)
-                check_args(expected_args)
+                result = check_args(expected_args)
+                if result:
+                    return result
 
         expected_path = self._path_expect.get(tt, None)
         observed_path = os.path.realpath(exepath)
