@@ -74,7 +74,7 @@ def trace(sysdig_exe: str, p: Policy):
     filtspec = filtspec + " and evt.failed=false and user.name=" + logname
 
     formatspec = "%thread.tid#%evt.type#%proc.exepath#%proc.pname#" + \
-        "%proc.pid#%proc.ppid#%proc.args#%evt.args##"
+        "%proc.pid#%proc.ppid#%evt.args##"
 
     sysdig_cmd = ['sudo', sysdig_exe, '--print-base64',
                   '-p', formatspec,
@@ -82,16 +82,15 @@ def trace(sysdig_exe: str, p: Policy):
 
     try:
         # bufsize=1 requests line buffering
-        _sysdig = subprocess.Popen(sysdig_cmd,
-                                   stdout=subprocess.PIPE,
-                                   bufsize=1,
-                                   shell=False)
+        sysdig = subprocess.Popen(sysdig_cmd,
+                                  stdout=subprocess.PIPE,
+                                  bufsize=1,
+                                  shell=False)
 
         eol = b'##\n'
         while True:
             # read input as bytes since its not guaranteed to be UTF-8
-            # line = sys.stdin.buffer.readline()
-            line = _sysdig.stdout.readline()
+            line = sysdig.stdout.readline()
             while not line.endswith(eol):
                 line += sys.stdin.buffer.readline()
 

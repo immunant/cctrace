@@ -63,14 +63,13 @@ class CCEvent(object):
     separator = b'#'
 
     def __init__(self, tid: int, _type: bytes, exepath: str, pname: str,
-                 pid: int, ppid: int, pargs: bytes, eargs: bytes):
+                 pid: int, ppid: int, eargs: bytes):
         self.tid = tid
         self.type = _type
         self.exepath = exepath
         self.pname = pname
         self.pid = pid
         self.ppid = ppid
-        self.pargs = pargs
         self.eargs = eargs
 
     def _parse_eargs_field(self, fieldname: bytes) -> str:
@@ -120,5 +119,4 @@ class CCEvent(object):
                        pname=str(tokens[3], encoding='utf-8'),
                        pid=_parse_pid(tokens[4]),
                        ppid=_parse_pid(tokens[5]),
-                       pargs=tokens[6],
-                       eargs=tokens[7])
+                       eargs=tokens[6])
