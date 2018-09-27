@@ -5,9 +5,13 @@ set -e
 export DEBIAN_FRONTEND=noninteractive  
 
 # Are we on a supported distro?
-dpkg-vendor --derives-from Debian || {
-    echo >&2 "Run this script on a Debian/Ubuntu host."; exit 1; 
-}
+# note: can't use dpkg-vendor, not always available
+# dpkg-vendor --derives-from Debian || {
+#     echo >&2 "Run this script on a Debian-like host."; exit 1;
+# }
+if [ ! "$(grep -Ei 'debian|buntu|mint' /etc/*release)" ]; then
+   echo >&2 "Run this script on a Debian-like host."; exit 1;
+fi
 
 if [[ "$EUID" -ne 0 ]]
   then echo "Please run as root"
