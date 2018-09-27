@@ -125,10 +125,13 @@ def _parse_args():
     """
     define and parse command line arguments here.
     """
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    default_policy = os.path.join(script_dir, 'policy/default.cctrace.json')
+
     desc = 'listen for compiler invocations.'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-p', '--policy',
-                        default='policy/default.cctrace.json',
+                        default=default_policy,
                         type=argparse.FileType('r'),
                         help='trace configuration file')
     parser.add_argument('-l', '--logfile',
