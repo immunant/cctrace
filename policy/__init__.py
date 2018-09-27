@@ -193,4 +193,6 @@ class Policy(object):
 
     def is_checked(self, exepath: str) -> bool:
         tt = ToolType.from_path(exepath)  # type: ToolType
-        return tt in self._path_expect or tt in self._args_expect
+        has_path_expect = len(self._path_expect[tt])
+        has_args_expect = tt in self._args_expect
+        return has_path_expect or has_args_expect
