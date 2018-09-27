@@ -3,6 +3,7 @@ import sys
 import json
 import argparse
 import logging
+from collections import defaultdict
 
 from itertools import chain
 
@@ -68,7 +69,7 @@ class Policy(object):
         self.name = "default"
         self.keep_going = False
         self.ignore_prefix = None
-        self._path_expect = dict()  # type: dict[ToolType, str]
+        self._path_expect = defaultdict(set)  # type: dict[ToolType, str]
         self._args_expect = dict()  # type: dict[ToolType, list[str]]
         self._compile_args_expect = dict()  # type: dict[ToolType, list[str]]
         self._link_args_expect = dict()  # type: dict[ToolType, list[str]]
@@ -88,24 +89,34 @@ class Policy(object):
                 emsg = emsg.format(k, exp_typ, type(v))
                 sys.exit(emsg)
 
+        def update_path_expect(t: ToolType, path: str) -> None:
+            """
+            note: don't try to validate paths, they may
+            come from another environment, e.g., docker.
+            """
+            path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            self._path_expect[t].add(path)
+
         # path and argument configuation
         for t in Policy.tools:
             tool_cfg = pol_file.pop(t.name, None)  # type: dict
             if tool_cfg:
+                path_emsg = "Error, path must be a string or list of strings, was "
                 # paths
                 path = tool_cfg.pop("path", None)  # type: str
                 if path:
-                    if type(path) != str:
-                        emsg = "Error, path key must be a string, was "
-                        emsg += path.__class__.__name__
-                        sys.exit(emsg)
-                    path = os.path.expanduser(path)
-                    # if not os.path.exists(path):
-                    #     emsg = "Error, couldn't find {} at {}"
-                    #     emsg = emsg.format(t.name, path)
-                    #     sys.exit(emsg)
-                    # canon_path = os.path.realpath(path)  # canonicalize
-                    self._path_expect[t] = path
+                    if type(path) != str and type(path) != list:
+                        path_emsg += path.__class__.__name__
+                        sys.exit(path_emsg)
+                    elif type(path) == str:
+                        update_path_expect(t, path)
+                    elif type(path) == list:
+                        for p in path:
+                            if type(p) != str:
+                                path_emsg += path.__class__.__name__
+                                sys.exit(path_emsg)
+                            update_path_expect(t, p)
 
                 targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
@@ -169,10 +180,14 @@ class Policy(object):
                 if result:
                     return result
 
-        expected_path = self._path_expect.get(tt, None)
+        expected_paths = self._path_expect[tt]  # type: defaultdict(set)
         observed_path = os.path.realpath(exepath)
-        if expected_path and expected_path != observed_path:
-            return PolicyError.tool_mismatch(tt, expected_path, observed_path)
+        if expected_paths:
+            for expected_path in expected_paths:
+                if expected_path == observed_path:
+                    break
+            else:  # no break -> no match
+                return PolicyError.tool_mismatch(tt, expected_path, observed_path)
 
         return None
 
