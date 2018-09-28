@@ -1,8 +1,7 @@
 import os
 import sys
-import json
-import argparse
 import logging
+import unittest
 from collections import defaultdict
 
 from itertools import chain
@@ -80,12 +79,10 @@ class Policy(object):
         self._compile_args_expect = dict()          # type: dict[ToolType, list[str]]
         self._compile_link_args_expect = dict()     # type: dict[ToolType, list[str]]
 
-    def update(self, args: argparse.Namespace) -> None:
-
-        pol_file = json.load(args.policy)  # type: dict
+    def update(self, config: dict) -> None:
 
         # type check top-level elements of policy file
-        for (k, v) in pol_file.items():
+        for (k, v) in config.items():
             exp_typ = Policy.schema.get(k, None)
             if not exp_typ:
                 emsg = "Error, unknown configuration key: " + str(k)
@@ -106,7 +103,7 @@ class Policy(object):
 
         # path and argument configuation
         for t in Policy.tools:
-            tool_cfg = pol_file.pop(t.name, None)  # type: dict
+            tool_cfg = config.pop(t.name, None)  # type: dict
             if tool_cfg:
                 path_emsg = "Error, path must be a string or list of strings, was "
                 # paths
@@ -154,22 +151,21 @@ class Policy(object):
                 if len(tool_cfg):
                     logging.warning("didn't understand policy for %s", t.name)
 
-        self.name = pol_file.pop("name", self.name)
-        self.keep_going = pol_file.pop("keep_going", self.keep_going)
+        self.name = config.pop("name", self.name)
+        self.keep_going = config.pop("keep_going", self.keep_going)
 
     def check(self, exepath: str, args: str = "") -> PolicyError:
         tt = ToolType.from_path(exepath)  # type: ToolType
 
         def check_args(exp_args) -> PolicyError:
-            if exp_args:
-                for expected in exp_args:
-                    if expected not in args:
-                        return PolicyError.argument_mismatch(tt,
-                                                             expected,
-                                                             args)
+            for expected in exp_args:
+                if expected not in args:
+                    return PolicyError.argument_mismatch(tt,
+                                                         expected,
+                                                         args)
             return None
 
-        expected_args = self._args_expect.get(tt, None)
+        expected_args = self._args_expect.get(tt, [])
         if tt.is_compiler():
             if " -c " in args:  # only compile
                 expected_args += self._compile_args_expect.get(tt, [])
@@ -196,3 +192,13 @@ class Policy(object):
         has_path_expect = len(self._path_expect[tt])
         has_args_expect = tt in self._args_expect
         return has_path_expect or has_args_expect
+
+
+# class TestPolicy(unittest.TestCase):
+#
+#     def test_check(self):
+#         p = Policy()
+#
+#
+# if __name__ == '__main__':
+#     unittest.main()

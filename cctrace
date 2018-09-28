@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import json
 import os
 import sys
 # import psutil
@@ -112,7 +112,7 @@ def trace(sysdig_exe: str, p: Policy):
         pt.print_tree(p)
 
 
-def _setup_logging(args):
+def setup_logging(args):
     logging.basicConfig(
         filename=args.logfile,
         format="%(asctime)-15s:%(levelname)s:%(message)s",
@@ -121,7 +121,7 @@ def _setup_logging(args):
     logging.debug("argv: %s", " ".join(sys.argv))
 
 
-def _parse_args():
+def parse_args():
     """
     define and parse command line arguments here.
     """
@@ -144,17 +144,7 @@ def _parse_args():
     return args
 
 
-def main():
-
-    # is user authenticated as a sudoer?
-    if prompt_sudo() != 0:
-        sys.exit('This script requires superuser privileges.')
-
-    args = _parse_args()
-    p = Policy()
-    p.update(args)
-    _setup_logging(args)
-
+def get_sysdig_exe_or_exit():
     sysdig_exe = get_cmd_output_or_exit(['which', 'sysdig'], "Error, sysdig not found")
     sysdig_exe = sysdig_exe.rstrip()  # get rid of trailing newline
     sysdig_ver = get_cmd_output_or_exit([sysdig_exe, '--version'])
@@ -167,7 +157,22 @@ def main():
             "Expected: {}\nActual..: {}\n".format(expected, sysdig_ver)
         sys.exit(emsg)
 
-    trace(sysdig_exe, p)
+    return sysdig_exe
+
+
+def main():
+    # is user authenticated as a sudoer?
+    if prompt_sudo() != 0:
+        sys.exit('This script requires superuser privileges.')
+
+    args = parse_args()
+    p = Policy()
+
+    config = json.load(args.policy)  # type: dict
+    p.update(config)
+    setup_logging(args)
+
+    trace(get_sysdig_exe_or_exit(), p)
 
 
 if __name__ == "__main__":
