@@ -107,7 +107,7 @@ def get_tool_ver(exepath: str):
         return None
 
     # NOTE: skipping this step leads to prettier version output for GCC
-    # at the expense of adduitional cache entries.
+    # at the expense of additional cache entries.
     # exepath = os.path.realpath(exepath)  # canonicalize path
     try:
         p = sp.Popen([exepath, '--version'], stdout=sp.PIPE, stderr=sp.PIPE)
