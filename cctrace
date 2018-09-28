@@ -169,7 +169,7 @@ def main():
     p = Policy()
 
     config = json.load(args.policy)  # type: dict
-    p.update(config)
+    p.configure(config)
     setup_logging(args)
 
     trace(get_sysdig_exe_or_exit(), p)

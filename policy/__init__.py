@@ -79,7 +79,16 @@ class Policy(object):
         self._compile_args_expect = dict()          # type: dict[ToolType, list[str]]
         self._compile_link_args_expect = dict()     # type: dict[ToolType, list[str]]
 
-    def update(self, config: dict) -> None:
+    def configure_path_expect(self, t: ToolType, path: str) -> None:
+        """
+        note: don't try to validate paths, they may
+        come from another environment, e.g., docker.
+        """
+        path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        self._path_expect[t].add(path)
+
+    def configure(self, config: dict) -> None:
 
         # type check top-level elements of policy file
         for (k, v) in config.items():
@@ -91,15 +100,6 @@ class Policy(object):
                 emsg = "Error, expected key {} to have type {}; actual type {}"
                 emsg = emsg.format(k, exp_typ, type(v))
                 sys.exit(emsg)
-
-        def update_path_expect(t: ToolType, path: str) -> None:
-            """
-            note: don't try to validate paths, they may
-            come from another environment, e.g., docker.
-            """
-            path = os.path.expanduser(path)
-            path = os.path.realpath(path)
-            self._path_expect[t].add(path)
 
         # path and argument configuation
         for t in Policy.tools:
@@ -113,13 +113,13 @@ class Policy(object):
                         path_emsg += path.__class__.__name__
                         sys.exit(path_emsg)
                     elif type(path) == str:
-                        update_path_expect(t, path)
+                        self.configure_path_expect(t, path)
                     elif type(path) == list:
                         for p in path:
                             if type(p) != str:
                                 path_emsg += path.__class__.__name__
                                 sys.exit(path_emsg)
-                            update_path_expect(t, p)
+                            self.configure_path_expect(t, p)
 
                 targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
@@ -194,11 +194,44 @@ class Policy(object):
         return has_path_expect or has_args_expect
 
 
-# class TestPolicy(unittest.TestCase):
-#
-#     def test_check(self):
-#         p = Policy()
-#
-#
-# if __name__ == '__main__':
-#     unittest.main()
+class TestPolicy(unittest.TestCase):
+
+    invalid_path = "/no/such/path/i/really/hope/srsly/wth"
+    cc_path = "/usr/bin/cc"
+    cc_args = "-O2 -g -c test.c"
+    clang_path = "/usr/bin/clang"
+
+    def test_check_no_config(self):
+        """
+        tests `check` method without configuration
+        """
+        p = Policy()
+        # no config, no args -> `check` returns `None`
+        c = p.check(self.cc_path)
+        self.assertIsNone(c)
+        # no config -> `check` returns `None`
+        c = p.check(TestPolicy.cc_path)
+        self.assertIsNone(c, self.cc_args)
+
+    def test_check_cc_with_config(self):
+        p = Policy()
+        config = dict()
+        config[ToolType.c_compiler.name] = self.cc_path
+        p.configure_path_expect(ToolType.c_compiler, self.cc_path)
+        # expected path -> `check` returns `None`
+        c = p.check(self.cc_path)
+        self.assertIsNone(c)
+
+        # invalid path -> check returns `None`
+        c = p.check(self.invalid_path)
+        self.assertIsNone(c, type(PolicyError))
+
+        # clang -> check returns `PolicyError`
+        c = p.check(self.clang_path)
+        self.assertIsInstance(c, PolicyError)
+
+
+
+
+if __name__ == '__main__':
+    unittest.main()
