@@ -9,6 +9,12 @@
     },
     "linker": {
         "path": "/usr/bin/ld"
+    },
+    "archiver": {
+        "path": "/usr/bin/ar"
+    },
+    "indexer": {
+        "path": "/usr/bin/ranlib"
     }
 }
 

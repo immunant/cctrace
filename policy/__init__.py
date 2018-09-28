@@ -56,7 +56,13 @@ class PolicyError(object):
 
 class Policy(object):
     # tool types that we can configure and police
-    tools = [ToolType.c_compiler, ToolType.cxx_compiler, ToolType.linker]
+    tools = [ToolType.c_compiler,
+             ToolType.cxx_compiler,
+             ToolType.linker,
+             ToolType.archiver,
+             ToolType.indexer,
+             ToolType.sym_lister,
+             ToolType.assembler]
     # the expected schema for .json configuration files
     schema = {
         "name": str,
@@ -69,10 +75,10 @@ class Policy(object):
         self.name = "default"
         self.keep_going = False
         self.ignore_prefix = None
-        self._path_expect = defaultdict(set)  # type: dict[ToolType, str]
-        self._args_expect = dict()  # type: dict[ToolType, list[str]]
-        self._compile_args_expect = dict()  # type: dict[ToolType, list[str]]
-        self._link_args_expect = dict()  # type: dict[ToolType, list[str]]
+        self._path_expect = defaultdict(set)        # type: dict[ToolType, str]
+        self._args_expect = dict()                  # type: dict[ToolType, list[str]]
+        self._compile_args_expect = dict()          # type: dict[ToolType, list[str]]
+        self._compile_link_args_expect = dict()     # type: dict[ToolType, list[str]]
 
     def update(self, args: argparse.Namespace) -> None:
 
@@ -142,7 +148,7 @@ class Policy(object):
                             emsg = "Error, link_args key must be a list of strings, was "
                             emsg += targs.__class__.__name__
                             sys.exit(emsg)
-                        self._link_args_expect[t] = targs
+                        self._compile_link_args_expect[t] = targs
 
                 # did we process all configuration keys for t?
                 if len(tool_cfg):
@@ -164,21 +170,15 @@ class Policy(object):
             return None
 
         expected_args = self._args_expect.get(tt, None)
+        if tt.is_compiler():
+            if " -c " in args:  # only compile
+                expected_args += self._compile_args_expect.get(tt, [])
+            else:  # compile and link
+                expected_args += self._compile_link_args_expect.get(tt, [])
+
         result = check_args(expected_args)
         if result:
             return result
-
-        if tt.is_compiler():
-            if " -c " in args:
-                expected_args = self._compile_args_expect.get(tt, None)
-                result = check_args(expected_args)
-                if result:
-                    return result
-            else:
-                expected_args = self._link_args_expect.get(tt, None)
-                result = check_args(expected_args)
-                if result:
-                    return result
 
         expected_paths = self._path_expect[tt]  # type: defaultdict(set)
         observed_path = os.path.realpath(exepath)
