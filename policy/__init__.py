@@ -197,9 +197,11 @@ class Policy(object):
 class TestPolicy(unittest.TestCase):
 
     invalid_path = "/no/such/path/i/really/hope/srsly/wth"
-    cc_path = "/usr/bin/cc"
+    gcc_path = "/usr/bin/gcc"
+    gxx_path = "/usr/bin/g++"
     cc_args = "-O2 -g -c test.c"
     clang_path = "/usr/bin/clang"
+    clangxx_path = "/usr/bin/clang++"
 
     def test_check_no_config(self):
         """
@@ -207,28 +209,84 @@ class TestPolicy(unittest.TestCase):
         """
         p = Policy()
         # no config, no args -> `check` returns `None`
-        c = p.check(self.cc_path)
+        c = p.check(self.gcc_path)
         self.assertIsNone(c)
         # no config -> `check` returns `None`
-        c = p.check(TestPolicy.cc_path)
+        c = p.check(TestPolicy.gcc_path)
         self.assertIsNone(c, self.cc_args)
 
-    def test_check_cc_with_config(self):
+    def test_check_cc_path(self):
         p = Policy()
-        config = dict()
-        config[ToolType.c_compiler.name] = self.cc_path
-        p.configure_path_expect(ToolType.c_compiler, self.cc_path)
+        p.configure_path_expect(ToolType.c_compiler, self.gcc_path)
         # expected path -> `check` returns `None`
-        c = p.check(self.cc_path)
+        c = p.check(self.gcc_path)
         self.assertIsNone(c)
 
         # invalid path -> check returns `None`
         c = p.check(self.invalid_path)
-        self.assertIsNone(c, type(PolicyError))
+        self.assertIsNone(c)
 
         # clang -> check returns `PolicyError`
         c = p.check(self.clang_path)
         self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "not using expected c_compiler")
+
+    def test_check_cxx_path(self):
+        p = Policy()
+        p.configure_path_expect(ToolType.cxx_compiler, self.gxx_path)
+        # expected path -> `check` returns `None`
+        c = p.check(self.gxx_path)
+        self.assertIsNone(c)
+
+        # invalid path -> check returns `None`
+        c = p.check(self.invalid_path)
+        self.assertIsNone(c)
+
+        # clang -> check returns `PolicyError`
+        c = p.check(self.clangxx_path)
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "not using expected cxx_compiler")
+
+
+    def test_check_cc_args(self):
+        p = Policy()
+        # args we expect no matter whether we're compiling or linking
+        p._args_expect[ToolType.c_compiler] = ["-flto"]
+
+        # passing expected parameters -> `None`
+        c = p.check(self.gcc_path, "-flto")
+        self.assertIsNone(c)
+
+        # not passing expected parameters -> `PolicyError`
+        c = p.check(self.gcc_path, "--version")
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "missing argument to c_compiler")
+
+        # args we expect when we're only compiling
+        p._compile_args_expect = ["-g", "-O2", "-Wall"]
+
+        # passing expected parameters when compiling -> `None`
+        c = p.check(self.gcc_path, "-c -flto -g -O2 -Wall")
+        self.assertIsNone(c)
+
+        # not passing expected parameters when compiling -> `PolicyError`
+        c = p.check(self.gcc_path, "-c -g -O2 -Wall")
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "missing argument to c_compiler")
+
+        # TODO: should have compile args expect for c and c++ compilers separately
+        # TODO: this test craps out
+        c = p.check(self.gcc_path, "-c -flto -Wall")
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "missing argument to c_compiler")
+
+        # # args we expect when we're linking
+        # p._compile_link_args_expect = ["-lm", "-ldl"]
+        #
+        # # passing expected parameters when linking -> `None`
+        # c = p.check(self.gcc_path, "-flto -lm -ldl")
+        # self.assertIsNone(c, "problem handling linker args")
+
 
 
 
