@@ -222,10 +222,19 @@ class TestPolicy(unittest.TestCase):
     clang_path = "/usr/bin/clang"
     clangxx_path = "/usr/bin/clang++"
 
+    def test_is_checked(self):
+        p = Policy()
+        self.assertFalse(p.is_checked(self.gcc_path))
+        # start checking c compiler
+        p.expect_tool_path(ToolType.c_compiler, self.gcc_path)
+        self.assertTrue(p.is_checked(self.gcc_path))
+        # C++ compiler is still not checked
+        self.assertFalse(p.is_checked(self.gxx_path))
+        # now, C++ compiler args are checked
+        p.expect_tool_args(ToolType.cxx_compiler, ["-g"])
+        self.assertTrue(p.is_checked(self.gxx_path))
+
     def test_check_no_config(self):
-        """
-        tests `check` method without configuration
-        """
         p = Policy()
         # no config, no args -> `check` returns `None`
         c = p.check(self.gcc_path)
@@ -250,7 +259,7 @@ class TestPolicy(unittest.TestCase):
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "not using expected c_compiler")
 
-    def test_check_path(self):
+    def test_check_cxx_path(self):
         p = Policy()
         p.expect_tool_path(ToolType.cxx_compiler, self.gxx_path)
         # expected path -> `check` returns `None`
@@ -265,6 +274,22 @@ class TestPolicy(unittest.TestCase):
         c = p.check(self.clangxx_path)
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "not using expected cxx_compiler")
+
+    def test_check_linker_path(self):
+        p = Policy()
+        p.expect_tool_path(ToolType.linker, "/usr/bin/ld")
+        # expected path -> `check` returns `None`
+        c = p.check("/usr/bin/ld")
+        self.assertIsNone(c)
+
+        # invalid path -> check returns `None`
+        c = p.check(self.invalid_path)
+        self.assertIsNone(c)
+
+        # clang -> check returns `PolicyError`
+        c = p.check("/my/custom/path/ld")
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "not using expected linker")
 
     def test_check_cc_args(self):
         tt = ToolType.c_compiler
@@ -293,7 +318,6 @@ class TestPolicy(unittest.TestCase):
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
 
-
         c = p.check(self.gcc_path, "-c -flto -Wall")
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
@@ -309,9 +333,6 @@ class TestPolicy(unittest.TestCase):
         c = p.check(self.gcc_path, "-flto -lm")
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
-
-
-
 
 
 if __name__ == '__main__':
