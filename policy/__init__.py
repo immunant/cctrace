@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import logging
 import unittest
@@ -79,7 +80,7 @@ class Policy(object):
         self._compile_args_expect = dict()          # type: dict[ToolType, list[str]]
         self._compile_link_args_expect = dict()     # type: dict[ToolType, list[str]]
 
-    def configure_path_expect(self, t: ToolType, path: str) -> None:
+    def expect_tool_path(self, t: ToolType, path: str) -> None:
         """
         note: don't try to validate paths, they may
         come from another environment, e.g., docker.
@@ -87,6 +88,20 @@ class Policy(object):
         path = os.path.expanduser(path)
         path = os.path.realpath(path)
         self._path_expect[t].add(path)
+
+    def expect_tool_args(self, t: ToolType, args: list,
+                         expect_when_compiling=False,
+                         expect_when_linking=False) -> None:
+        if expect_when_compiling and expect_when_linking:
+            assert False, "invalid args passed to expect_tool_args"
+        elif expect_when_compiling:
+            assert(t.is_compiler())
+            self._compile_args_expect[t] = args
+        elif expect_when_linking:
+            assert(t.is_compiler())
+            self._compile_link_args_expect[t] = args
+        else:
+            self._args_expect[t] = args
 
     def configure(self, config: dict) -> None:
 
@@ -113,13 +128,13 @@ class Policy(object):
                         path_emsg += path.__class__.__name__
                         sys.exit(path_emsg)
                     elif type(path) == str:
-                        self.configure_path_expect(t, path)
+                        self.expect_tool_path(t, path)
                     elif type(path) == list:
                         for p in path:
                             if type(p) != str:
                                 path_emsg += path.__class__.__name__
                                 sys.exit(path_emsg)
-                            self.configure_path_expect(t, p)
+                            self.expect_tool_path(t, p)
 
                 targs = tool_cfg.pop("args", None)  # type: list[str]
                 if targs:
@@ -127,7 +142,7 @@ class Policy(object):
                         emsg = "Error, args key must be a list of strings, was "
                         emsg += targs.__class__.__name__
                         sys.exit(emsg)
-                    self._args_expect[t] = targs
+                    self.expect_tool_args(t, targs)
 
                 # compiler specific keys
                 if t.is_compiler():
@@ -137,7 +152,7 @@ class Policy(object):
                             emsg = "Error, compile_args key must be a list of strings, was "
                             emsg += targs.__class__.__name__
                             sys.exit(emsg)
-                        self._compile_args_expect[t] = targs
+                        self.expect_tool_args(t, targs, expect_when_compiling=True)
 
                     targs = tool_cfg.pop("link_args", None)  # type: list[str]
                     if targs:
@@ -145,7 +160,7 @@ class Policy(object):
                             emsg = "Error, link_args key must be a list of strings, was "
                             emsg += targs.__class__.__name__
                             sys.exit(emsg)
-                        self._compile_link_args_expect[t] = targs
+                        self.expect_tool_args(t, targs, expect_when_linking=True)
 
                 # did we process all configuration keys for t?
                 if len(tool_cfg):
@@ -167,9 +182,13 @@ class Policy(object):
 
         expected_args = self._args_expect.get(tt, [])
         if tt.is_compiler():
-            if " -c " in args:  # only compile
+            # look for the -c flag which must either be preceeded (followed)
+            # by a space or the start (end) of the line.
+            if re.search(r"(\s|^)-c(\s|$)", args):  # only compile
+                expected_args = list(expected_args)
                 expected_args += self._compile_args_expect.get(tt, [])
             else:  # compile and link
+                expected_args = list(expected_args)
                 expected_args += self._compile_link_args_expect.get(tt, [])
 
         result = check_args(expected_args)
@@ -217,7 +236,7 @@ class TestPolicy(unittest.TestCase):
 
     def test_check_cc_path(self):
         p = Policy()
-        p.configure_path_expect(ToolType.c_compiler, self.gcc_path)
+        p.expect_tool_path(ToolType.c_compiler, self.gcc_path)
         # expected path -> `check` returns `None`
         c = p.check(self.gcc_path)
         self.assertIsNone(c)
@@ -231,9 +250,9 @@ class TestPolicy(unittest.TestCase):
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "not using expected c_compiler")
 
-    def test_check_cxx_path(self):
+    def test_check_path(self):
         p = Policy()
-        p.configure_path_expect(ToolType.cxx_compiler, self.gxx_path)
+        p.expect_tool_path(ToolType.cxx_compiler, self.gxx_path)
         # expected path -> `check` returns `None`
         c = p.check(self.gxx_path)
         self.assertIsNone(c)
@@ -247,11 +266,11 @@ class TestPolicy(unittest.TestCase):
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "not using expected cxx_compiler")
 
-
     def test_check_cc_args(self):
+        tt = ToolType.c_compiler
         p = Policy()
         # args we expect no matter whether we're compiling or linking
-        p._args_expect[ToolType.c_compiler] = ["-flto"]
+        p._args_expect[tt] = ["-flto"]
 
         # passing expected parameters -> `None`
         c = p.check(self.gcc_path, "-flto")
@@ -263,7 +282,7 @@ class TestPolicy(unittest.TestCase):
         self.assertEqual(c.message, "missing argument to c_compiler")
 
         # args we expect when we're only compiling
-        p._compile_args_expect = ["-g", "-O2", "-Wall"]
+        p.expect_tool_args(tt, ["-g", "-O2", "-Wall"], expect_when_compiling=True)
 
         # passing expected parameters when compiling -> `None`
         c = p.check(self.gcc_path, "-c -flto -g -O2 -Wall")
@@ -274,18 +293,22 @@ class TestPolicy(unittest.TestCase):
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
 
-        # TODO: should have compile args expect for c and c++ compilers separately
-        # TODO: this test craps out
+
         c = p.check(self.gcc_path, "-c -flto -Wall")
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
 
-        # # args we expect when we're linking
-        # p._compile_link_args_expect = ["-lm", "-ldl"]
-        #
-        # # passing expected parameters when linking -> `None`
-        # c = p.check(self.gcc_path, "-flto -lm -ldl")
-        # self.assertIsNone(c, "problem handling linker args")
+        # args we expect when we're linking
+        p.expect_tool_args(tt, ["-lm", "-ldl"], expect_when_linking=True)
+
+        # passing expected parameters when linking -> `None`
+        c = p.check(self.gcc_path, "-flto -lm -ldl")
+        self.assertIsNone(c, "problem handling linker args")
+
+        # missing linker parameters when linking -> `PolicyError`
+        c = p.check(self.gcc_path, "-flto -lm")
+        self.assertIsInstance(c, PolicyError)
+        self.assertEqual(c.message, "missing argument to c_compiler")
 
 
 
