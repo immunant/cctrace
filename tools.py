@@ -3,22 +3,21 @@ import re
 import subprocess as sp
 from enum import Enum
 
-
 class ToolType(Enum):
-    c_compiler = 1,
-    cxx_compiler = 2,
-    gcc_lib = 3,
-    gcc_bin = 4,
-    llvm_lib = 5,
-    linker = 6,
-    archiver = 7,  # ar
-    indexer = 8,  # ranlib
-    sym_lister = 9,  # nm
-    builder = 10,  # make, cmake, etc.
-    interpreter = 11,
-    util = 12,
-    assembler = 13,
-    unknown = 14,
+    c_compiler = 1
+    cxx_compiler = 2
+    gcc_lib = 3
+    gcc_bin = 4
+    llvm_lib = 5
+    linker = 6
+    archiver = 7  # ar
+    indexer = 8  # ranlib
+    sym_lister = 9  # nm
+    builder = 10  # make, cmake, etc.
+    interpreter = 11
+    util = 12
+    assembler = 13
+    unknown = 14
 
     def __str__(self):
         return self.name
@@ -124,6 +123,14 @@ def get_tool_ver(exepath: str):
 
 
 get_tool_ver.cache = dict()  # init cache
+
+
+def get_unchecked_tools(p):
+    # return all the tools that are not checked under the policy
+    unchecked = [(ToolType.from_path(k), k)
+                 for k in get_tool_ver.cache.keys()
+                 if not p.is_checked(k)]
+    return sorted(unchecked, key=lambda t: t[0].value)
 
 
 if __name__ == "__main__":

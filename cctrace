@@ -11,6 +11,7 @@ import subprocess
 from ccevent import CCEvent
 from policy import Policy, PolicyError
 from proctree import ProcTree
+from tools import get_unchecked_tools
 
 
 def prompt_sudo():
@@ -108,8 +109,18 @@ def trace(sysdig_exe: str, p: Policy):
                 assert False, "Unexpected event type: " + str(evt.type)
 
     except KeyboardInterrupt:
-        print()
-        pt.print_tree(p)
+        on_keyboard_interrupt(pt, p)
+
+
+def on_keyboard_interrupt(pt: ProcTree, p: Policy):
+    print()
+    pt.print_tree(p)
+    unchecked = get_unchecked_tools(p)
+    if len(unchecked):
+        print("{} tools were not checked, see log for details.".format(len(unchecked)))
+        logging.debug("number of unchecked tools: %s", len(unchecked))
+        for (tt, path) in unchecked:
+            logging.debug("{0:.<12}: {1}".format(tt, path))
 
 
 def setup_logging(args):
