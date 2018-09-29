@@ -1,5 +1,5 @@
 # cctrace
-Trace invocations of compiler, linker, and other build tools.  `cctrace` relies on `sysdig` which is only supported on Linux.
+Trace invocations of compiler, linker, and other build tools. `cctrace` relies on [`sysdig`](https://github.com/draios/sysdig) for Linux.
 
 ## Prerequisites
 
@@ -25,10 +25,26 @@ If the multicompiler is not installed to `$HOME/selfrando-testing/local` use the
 
     $ sudo ./cctrace --help
 
+## Policies
+
+`cctrace` policies are stored as JSON files. See `policy/default.cctrace.json` for an example.
+The top-level configuration items are:
+
+- `name`: names the policy (string)
+- `keep_going`: stop on policy violation or not (bool)
+- `c_compiler`: configures the C compiler. Subkeys:
+    - `path`: string or list of strings of expected paths
+    - `args`: list of strings of expected arguments
+    - `compile_args`: list of strings of *additional* arguments when compiler is *not* linking.
+    - `link_args`: list of strings of *additional* arguments when compiler is linking.
+- `cxx_compiler`: configures the C++ compiler. Same subkeys as `c_compiler`.
+- `linker`: configures the linker. Subkeys `path` and `args` same format as `c_compiler`.
+- `assembler`: configures the assembler (`as`, `yasm`, `nasm`) same subkeys as linker.
+- `archiver`: configures the archiver (`ar`) same subkeys as linker.
+- `indexer`: configures the indexer (`ranlib`) same subkeys as linker.
+- `sym_lister`: configures the symbol lister (`nm`) same subkeys as linker.
+
 ## TODOs:
 
-- [x] Handle multi-line commands 
-- [x] log compiler invocations
-- [x] log linker invocations
-- [x] decouple core tool from multicompiler
+- [ ] document configuration format
 - [ ] detect selfrando
