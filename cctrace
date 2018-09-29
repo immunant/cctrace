@@ -115,6 +115,8 @@ def trace(sysdig_exe: str, p: Policy):
 def on_keyboard_interrupt(pt: ProcTree, p: Policy):
     print()
     pt.print_tree(p)
+    # NOTE: `get_unchecked_tools` must run *after* a function that populates
+    # the tool version cache such as `print_tree` or `format single_branch`.
     unchecked = get_unchecked_tools(p)
     if len(unchecked):
         print("{} tools were not checked, see log for details.".format(len(unchecked)))

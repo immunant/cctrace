@@ -37,6 +37,10 @@ class ToolType(Enum):
         c_compiler
         >>> ToolType.from_path("/usr/bin/gcc")
         c_compiler
+        >>> ToolType.from_path("/usr/bin/g++")
+        cxx_compiler
+        >>> ToolType.from_path("/usr/bin/clang++")
+        cxx_compiler
         >>> ToolType.from_path("/usr/bin/python3")
         interpreter
         >>> ToolType.from_path("/usr/bin/python3.6")
@@ -47,6 +51,22 @@ class ToolType(Enum):
         interpreter
         >>> ToolType.from_path("/bin/grep")
         util
+        >>> ToolType.from_path("/usr/bin/as")
+        assembler
+        >>> ToolType.from_path("/usr/bin/x86_64-linux-gnu-as")
+        assembler
+        >>> ToolType.from_path("/usr/bin/x86_64-linux-gnu-ar")
+        archiver
+        >>> ToolType.from_path("/usr/bin/ld")
+        linker
+        >>> ToolType.from_path("/usr/bin/ld.bfd")
+        linker
+        >>> ToolType.from_path("/usr/bin/ld.gold")
+        linker
+        >>> ToolType.from_path("/usr/bin/ld.ldd")
+        linker
+        >>> ToolType.from_path("/usr/bin/x86_64-linux-gnu-ld")
+        linker
         """
         typ = ToolType._cache.get(exepath, None)
         if typ:
@@ -79,9 +99,14 @@ ToolType._matchers = {k: re.compile(v) for (k, v) in {
     ToolType.c_compiler: r"[^\0]+/(clang|gcc|suncc|icc|cc)$",
     ToolType.cxx_compiler: r"[^\0]+/(clang\+\+|g\+\+|c\+\+)$",
     ToolType.gcc_lib: r"/usr/lib/gcc/[^\0]+/(\d\.\d|\d)/(cc(1|1plus)|collect2)",
-    ToolType.gcc_bin: r"/usr/bin/(x86_64|i686|arm|arm64|aarch64)-linux-gnu-",
+    # can match the gcc version of as, ld, etc. so commented out for now.
+    # ToolType.gcc_bin: r"/usr/bin/(x86_64|i686|arm|arm64|aarch64)-linux-gnu-",
     ToolType.llvm_lib: r"/usr/lib/llvm-[\d\.]+/bin/clang(\+\+)?",
-    ToolType.linker: r"[^\0]+/ld(\.gold|\.bfd|\.ldd)?$",
+    ToolType.linker: r"[^\0]+/((x86_64|i686|arm|arm64|aarch64)-linux-gnu-)?ld(\.gold|\.bfd|\.ldd)?$",
+    ToolType.assembler: r"[^\0]+/(((x86_64|i686|arm|arm64|aarch64)-linux-gnu-)?as|yasm|nasm)$",
+    ToolType.archiver: r"[^\0]+/((x86_64|i686|arm|arm64|aarch64)-linux-gnu-)?ar$",
+    ToolType.indexer: r"[^\0]+/((x86_64|i686|arm|arm64|aarch64)-linux-gnu-)?ranlib$",
+    ToolType.sym_lister: r"[^\0]+/((x86_64|i686|arm|arm64|aarch64)-linux-gnu-)?nm$",
     ToolType.interpreter: r"[^\0]+/(python|ruby|tclsh|perl|lua)[\d\.]*$",
     ToolType.builder: r"[^\0]+/((c|cc|g|q)?make|cpack|ctest|scons|ninja|bear|ccache|libtool)",
     ToolType.util: r"/(usr/)?bin/.*",

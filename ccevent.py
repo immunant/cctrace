@@ -29,6 +29,8 @@ def get_color(exepath: str) -> str:
         color = Colors.LRED
     elif tt.is_compiler_helper() or \
             tt == ToolType.archiver or \
+            tt == ToolType.assembler or \
+            tt == ToolType.sym_lister or \
             tt == ToolType.indexer:
         color = Colors.LYELLOW
     elif tt == ToolType.interpreter or tt == ToolType.builder:
