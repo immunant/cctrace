@@ -3,6 +3,9 @@
     "keep_going": false,
     "c_compiler": {
         "path": "~/selfrando-testing/local/bin/clang",
+        "args": [
+          "-flto"
+        ],
         "compile_args": [
             "-frandom-seed="
         ],
