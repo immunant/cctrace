@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import re
 import sys
 # import psutil
 import logging
@@ -163,13 +164,24 @@ def get_sysdig_exe_or_exit():
     sysdig_ver = get_cmd_output_or_exit([sysdig_exe, '--version'])
 
     # check that we have the right version of sysdig
-    expected = 'sysdig version 0.23'
-    if not sysdig_ver.startswith(expected):
+    
+    m = re.match(r"sysdig version 0\.(\d+)(\.\d+)?", sysdig_ver)
+    version_match = True
+    if m:
+        ver_num = int(m.group(1))
+        # not tested with sysdig versions older than 0.23
+        if ver_num < 23:
+            version_match = False
+    else:
+        version_match = False
+
+    if not version_match:
+        expected = "sysdig version 0.23 or later"
         emsg = \
-            "Error, sysdig version mismatch.\n" \
+            "Error, sysdig version mismatch:\n" \
             "Expected: {}\nActual..: {}\n".format(expected, sysdig_ver)
         sys.exit(emsg)
-
+    logging.debug("using %s", sysdig_ver)
     return sysdig_exe
 
 
