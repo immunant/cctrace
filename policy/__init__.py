@@ -187,6 +187,8 @@ class Policy(object):
             if re.search(r"(\s|^)-c(\s|$)", args):  # only compile
                 expected_args = list(expected_args)
                 expected_args += self._compile_args_expect.get(tt, [])
+            elif re.search(r"(\s|^)-E(\s|$)", args):  # only preprocess
+                expected_args = []  # ignore preprocessor invocations
             else:  # compile and link
                 expected_args = list(expected_args)
                 expected_args += self._compile_link_args_expect.get(tt, [])
