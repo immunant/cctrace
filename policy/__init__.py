@@ -315,7 +315,7 @@ class TestPolicy(unittest.TestCase):
         self.assertIsNone(c)
 
         # not passing expected parameters -> `PolicyError`
-        c = p.check(self.gcc_path, "--version")
+        c = p.check(self.gcc_path, "-fno-lto")
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
 
@@ -346,6 +346,28 @@ class TestPolicy(unittest.TestCase):
         c = p.check(self.gcc_path, "-flto -lm")
         self.assertIsInstance(c, PolicyError)
         self.assertEqual(c.message, "missing argument to c_compiler")
+
+    def test_ignored_version_flags(self):
+        tt = ToolType.c_compiler
+        p = Policy()
+        # args we expect no matter whether we're compiling or linking
+        p._args_expect[tt] = ["-flto"]
+
+        # version checking does not trigger argument check
+        version_flags = ["-version",
+                         "-qversion",
+                         "--version",
+                         "--versio",
+                         "--versi",
+                         "--vers",
+                         "-v",
+                         "-V"]
+        for f in version_flags:
+            c = p.check(self.gcc_path, f)
+            self.assertIsNone(c)
+
+            c = p.check(self.gcc_path, " {} ".format(f))
+            self.assertIsNone(c)
 
 
 if __name__ == '__main__':
