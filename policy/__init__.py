@@ -71,6 +71,12 @@ class Policy(object):
     # update schema to require that all tool entries are dictionaries
     schema = dict(chain(schema.items(), {t.name: dict for t in tools}.items()))
 
+    # regexes to determine why compiler was invoked
+    compile_re = re.compile(r"(\s|^)-c(\s|$)")
+    conftest_re = re.compile(r".*conftest\.c\s*$")
+    preprocess_re = re.compile(r"(\s|^)-E(\s|$)")
+    version_check_re = re.compile(r"(\s|^)(-?-(vers|versi|versio|q?version)|-v|-V)(\s|$)")
+
     def __init__(self):
         self.name = "default"
         self.keep_going = False
@@ -182,13 +188,18 @@ class Policy(object):
 
         expected_args = self._args_expect.get(tt, [])
         if tt.is_compiler():
+            # look for compiler invocations that we don't care about
+            if self.preprocess_re.search(args) or \
+                    self.version_check_re.search(args) or \
+                    self.conftest_re.search(args):
+                # don't police preprocessor invocations, version checks
+                # or invocations by configure scripts.
+                expected_args = []
             # look for the -c flag which must either be preceeded (followed)
             # by a space or the start (end) of the line.
-            if re.search(r"(\s|^)-c(\s|$)", args):  # only compile
+            elif self.compile_re.search(args):
                 expected_args = list(expected_args)
                 expected_args += self._compile_args_expect.get(tt, [])
-            elif re.search(r"(\s|^)-E(\s|$)", args):  # only preprocess
-                expected_args = []  # ignore preprocessor invocations
             else:  # compile and link
                 expected_args = list(expected_args)
                 expected_args += self._compile_link_args_expect.get(tt, [])
