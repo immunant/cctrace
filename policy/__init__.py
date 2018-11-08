@@ -369,6 +369,23 @@ class TestPolicy(unittest.TestCase):
             c = p.check(self.gcc_path, " {} ".format(f))
             self.assertIsNone(c)
 
+    def test_ignore_irrelevant_invocations(self):
+        tt = ToolType.c_compiler
+        p = Policy()
+        # args we expect no matter whether we're compiling or linking
+        p._args_expect[tt] = ["-flto"]
+
+        ignored_args = [
+            "-E /tmp/cge1SY0n/dummy.c"  # actual preprocessor invocation
+            "-E"                        # nonsentical preprocessor invocation
+            "-c -g -DLINUX -D_REENTRANT -D_GNU_SOURCE conftest.c"  # configure script
+        ]
+
+        for args in ignored_args:
+            c = p.check(self.gcc_path, args)
+            self.assertIsNone(c)
+
+
 
 if __name__ == '__main__':
     unittest.main()
