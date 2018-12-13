@@ -44,7 +44,7 @@ The top-level configuration items are:
 - `indexer`: configures the indexer (`ranlib`) same subkeys as linker.
 - `sym_lister`: configures the symbol lister (`nm`) same subkeys as linker.
 
-## TODOs:
+## Acknowledgement and Disclaimer
+This material is based upon work supported by the United States Air Force and DARPA under Contract No. FA8750-15-C-0124.
 
-- [ ] document configuration format
-- [ ] detect selfrando
+Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Air Force and DARPA.
