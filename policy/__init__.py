@@ -73,9 +73,15 @@ class Policy(object):
 
     # regexes to determine why compiler was invoked
     compile_re = re.compile(r"(\s|^)-c(\s|$)")
-    conftest_re = re.compile(r".*conftest\.c\s*$")
+    conftest_re = re.compile(r".*conftest\.c(\s|$)")
     preprocess_re = re.compile(r"(\s|^)-E(\s|$)")
     version_check_re = re.compile(r"(\s|^)(-?-(vers|versi|versio|q?version)|-v|-V)(\s|$)")
+    printer_check_re = re.compile(r"(\s|^)(-?-(print-search-dirs|print-prog-name=\S|print-multi-os-directory(\s|$)))")
+    
+    linker_help_check_re = re.compile(r"(\s|^)(-?-(help|h))(\s|$)")
+    linker_version_check_re = re.compile(r"(\s|^)(-?-(vers|versi|versio|q?version)|-v|-V)(\s|$)")
+    linker_conftest_check_re = re.compile(r".*((-o conftest(\s|$))|/tmp/conftest-\S*\.o)")
+    
 
     def __init__(self):
         self.name = "default"
@@ -191,7 +197,8 @@ class Policy(object):
             # look for compiler invocations that we don't care about
             if self.preprocess_re.search(args) or \
                     self.version_check_re.search(args) or \
-                    self.conftest_re.search(args):
+                    self.conftest_re.search(args) or \
+                    self.printer_check_re.search(args):
                 # don't police preprocessor invocations, version checks
                 # or invocations by configure scripts.
                 expected_args = []
@@ -203,6 +210,13 @@ class Policy(object):
             else:  # compile and link
                 expected_args = list(expected_args)
                 expected_args += self._compile_link_args_expect.get(tt, [])
+                
+        elif tt.is_linker():
+            # look for linker invocations we don't care about
+            if self.linker_help_check_re.search(args) or \
+               self.linker_version_check_re.search(args) or \
+               self.linker_conftest_check_re.search(args):
+                expected_args = []
 
         result = check_args(expected_args)
         if result:
