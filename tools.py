@@ -93,6 +93,9 @@ class ToolType(Enum):
                self == ToolType.gcc_lib or \
                self == ToolType.llvm_lib
 
+    def is_linker(self):
+        return self == ToolType.linker
+
 
 ToolType._cache = dict()  # init cache
 ToolType._matchers = {k: re.compile(v) for (k, v) in {
