@@ -87,7 +87,7 @@ class Policy(object):
         self.name = "default"
         self.keep_going = False
         self.ignore_prefix = None
-        self._path_expect = defaultdict(set)        # type: dict[ToolType, str]
+        self._path_expect = defaultdict(set)        # type: defaultdict[ToolType, set[str]]
         self._args_expect = dict()                  # type: dict[ToolType, list[str]]
         self._compile_args_expect = dict()          # type: dict[ToolType, list[str]]
         self._compile_link_args_expect = dict()     # type: dict[ToolType, list[str]]
@@ -222,14 +222,15 @@ class Policy(object):
         if result:
             return result
 
-        expected_paths = self._path_expect[tt]  # type: defaultdict(set)
+        expected_paths = self._path_expect[tt]  # type: defaultdict[set]
         observed_path = os.path.realpath(exepath)
         if expected_paths:
             for expected_path in expected_paths:
                 if expected_path == observed_path:
                     break
             else:  # no break -> no match
-                return PolicyError.tool_mismatch(tt, expected_path, observed_path)
+                expected_str = "\n or ".join(expected_paths)
+                return PolicyError.tool_mismatch(tt, expected_str, observed_path)
 
         return None
 
@@ -398,7 +399,6 @@ class TestPolicy(unittest.TestCase):
         for args in ignored_args:
             c = p.check(self.gcc_path, args)
             self.assertIsNone(c)
-
 
 
 if __name__ == '__main__':
