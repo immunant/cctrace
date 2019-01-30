@@ -20,7 +20,7 @@ yum -yt install python36u python36u-pip
 sudo ln -fs /usr/bin/python3.6 /usr/bin/python3
 sudo ln -fs /usr/bin/pip3.6 /usr/bin/pip3
 # anytree python library
-pip3 install --quiet --user --no-cache anytree psutil
+pip3 install --quiet --no-cache anytree psutil
 
 # conditionally install sysdig
 SHOULD_INSTALL_SYSDIG=1

@@ -67,7 +67,6 @@ Vagrant.configure("2") do |config|
 
   # VMware Fusion.
   config.vm.provider "vmware_fusion" do |v|
-    v.name = 'cctrace'
     #  v.gui = true
 
     # Customize the amount of memory on the VM:

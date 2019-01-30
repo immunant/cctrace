@@ -21,7 +21,7 @@ fi
 apt-get -qq update
 apt-get -qq install build-essential curl htop python3-pip ipython3
 # anytree python library
-pip3 install --quiet --user --no-cache anytree psutil
+pip3 install --quiet --no-cache anytree psutil
 
 # conditionally install sysdig
 SHOULD_INSTALL_SYSDIG=1
