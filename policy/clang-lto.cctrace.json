@@ -1,0 +1,23 @@
+{
+    "name": "host default clang/LLVM",
+    "keep_going": false,
+    "c_compiler": {
+        "path": "/usr/bin/clang",
+        "args": [
+          "-flto"
+        ]
+    },
+    "cxx_compiler": {
+        "path": "/usr/bin/clang++"
+    },
+    "linker": {
+        "path": "/usr/bin/ld"
+    },
+    "archiver": {
+        "path": "/usr/bin/ar"
+    },
+    "indexer": {
+        "path": "/usr/bin/ranlib"
+    }
+}
+

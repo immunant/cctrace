@@ -66,14 +66,17 @@ def trace_procexit(evt: CCEvent, pt: ProcTree):
     pt.nodes_by_pid.pop(evt.pid, None)  # removes node if present
 
 
-def trace(sysdig_exe: str, p: Policy):
-
-    logname = get_cmd_output_or_exit(['logname']).rstrip()
+def trace(sysdig_exe: str, p: Policy, args):
     pt = ProcTree()
 
     # build sysdig command
-    filtspec = "(evt.type=execve or evt.type=clone or evt.type=procexit)"
-    filtspec = filtspec + " and evt.failed=false and user.name=" + logname
+    filtspec = "(evt.type=execve or evt.type=clone or evt.type=procexit) and evt.failed=false"
+
+    if not args.container:  # scope to current user
+        logname = get_cmd_output_or_exit(['logname']).rstrip()
+        filtspec += "  and user.name=" + logname
+    else:  # scope to named container
+        filtspec += "  and container.name=" + args.container
 
     formatspec = "%thread.tid#%evt.type#%proc.exepath#%proc.pname#" + \
         "%proc.pid#%proc.ppid#%evt.args##"
@@ -152,6 +155,11 @@ def parse_args():
                         default="cctrace.log",
                         action='store', dest='logfile',
                         help='set name of logfile')
+    parser.add_argument('--container-name',
+                        default=None,
+                        action='store', dest='container',
+                        help='listen to events in named container')
+
 
     args = parser.parse_args()
 
@@ -197,7 +205,7 @@ def main():
     p.configure(config)
     setup_logging(args)
 
-    trace(get_sysdig_exe_or_exit(), p)
+    trace(get_sysdig_exe_or_exit(), p, args)
 
 
 if __name__ == "__main__":
