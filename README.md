@@ -9,19 +9,19 @@ On Debian hosts, run `prerequisites_deb.sh` as root. Alternatively, install `sys
 
 Assuming pip3 is available, the `anytree` Python package can be installed via:
 
-    $ pip3 install -U --user anytree
+    # pip3 install anytree
 
 ## Usage
 
 `cctrace` is not a wrapper script around build systems. It is instead intended to be run side by side (e.g. in a separate terminal) with a build command like this:
 
-    $ sudo ./cctrace
+    # ./cctrace
 
 The default policy ensures that the host compiler is used and imposes no requirements on the build flags. To enforce another policy, point `cctrace` to a custom policy using the `-p` command line flag. 
 
 `cctrace` logs all "interesting" build commands to `cctrace.log` by default. To see all options, run:
 
-    $ sudo ./cctrace --help
+    $ ./cctrace --help
 
 ## Policies
 
